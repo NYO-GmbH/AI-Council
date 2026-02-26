@@ -5,7 +5,6 @@ export default defineNuxtConfig({
     '@nuxt/ui',
     '@nuxtjs/mdc',
     '@nuxthub/core',
-    'nuxt-auth-utils',
     'nuxt-charts'
   ],
 

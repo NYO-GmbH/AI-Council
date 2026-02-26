@@ -1,6 +1,14 @@
+CREATE TABLE `council_meetings` (
+	`id` text PRIMARY KEY NOT NULL,
+	`topic` text NOT NULL,
+	`status` text DEFAULT 'active' NOT NULL,
+	`state` text DEFAULT '{"queue":[],"rounds":0,"maxRounds":2}' NOT NULL,
+	`last_spoke_at` integer,
+	`created_at` integer NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE `council_members` (
 	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
 	`name` text NOT NULL,
 	`title` text NOT NULL,
 	`personality` text NOT NULL,
@@ -10,18 +18,6 @@ CREATE TABLE `council_members` (
 	`created_at` integer NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `council_members_user_id_idx` ON `council_members` (`user_id`);--> statement-breakpoint
-CREATE TABLE `council_meetings` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`topic` text NOT NULL,
-	`status` text DEFAULT 'active' NOT NULL,
-	`state` text DEFAULT '{"queue":[],"rounds":0,"maxRounds":2}' NOT NULL,
-	`last_spoke_at` integer,
-	`created_at` integer NOT NULL
-);
---> statement-breakpoint
-CREATE INDEX `council_meetings_user_id_idx` ON `council_meetings` (`user_id`);--> statement-breakpoint
 CREATE TABLE `council_messages` (
 	`id` text PRIMARY KEY NOT NULL,
 	`meeting_id` text NOT NULL,

@@ -55,6 +55,13 @@ const { data: meetings, refresh: refreshMeetings } = await useFetch<CouncilMeeti
   default: () => []
 })
 
+const meetingOptions = computed(() =>
+  (meetings.value || []).map(item => ({
+    label: item.topic,
+    value: item.id
+  }))
+)
+
 const roomMembers = computed(() => members.value?.filter(member => member.isActive) || [])
 const transcript = computed(() => meeting.value?.messages || [])
 const activeSpeaker = computed(() => [...transcript.value].reverse().find(message => message.role === 'agent'))
@@ -73,10 +80,30 @@ function seatStyle(index: number, total: number, color: string) {
   const x = 50 + (Math.cos(angle) * radius)
   const y = 50 + (Math.sin(angle) * radius)
   return {
-    left: `${x}%`,
-    top: `${y}%`,
+    'left': `${x}%`,
+    'top': `${y}%`,
     '--seat-color': color
   }
+}
+
+function roleLabel(message: CouncilMessage) {
+  if (message.role === 'agent') {
+    return message.member?.name || 'Agent'
+  }
+  if (message.role === 'user') {
+    return 'You'
+  }
+  return 'System'
+}
+
+function roleColor(role: CouncilMessage['role']) {
+  if (role === 'agent') {
+    return 'primary'
+  }
+  if (role === 'user') {
+    return 'info'
+  }
+  return 'warning'
 }
 
 async function loadMeeting(id: string) {
@@ -96,11 +123,12 @@ async function tickCouncil(userMessage?: string) {
     })
     await loadMeeting(selectedMeetingId.value)
     await refreshMeetings()
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err = error as { data?: { statusMessage?: string }, message?: string }
     toast.add({
       color: 'error',
       icon: 'i-lucide-alert-circle',
-      description: error?.data?.statusMessage || error?.message || 'Failed to progress meeting.'
+      description: err?.data?.statusMessage || err?.message || 'Failed to progress meeting.'
     })
   } finally {
     ticking.value = false
@@ -189,158 +217,248 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="p-3 sm:p-5 h-full">
-    <div class="flex items-center justify-between gap-3 mb-3">
-      <div>
-        <p class="text-sm text-muted">Council Chamber</p>
-        <h1 class="text-2xl sm:text-3xl font-bold text-highlighted">Agent Roundtable</h1>
-      </div>
-
-      <USelect
-        v-model="selectedMeetingId"
-        :items="(meetings || []).map(item => ({ label: item.topic, value: item.id }))"
-        placeholder="Select a meeting"
-        class="w-full max-w-md"
-      />
-    </div>
-
-    <div class="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-4 h-[calc(100%-5.2rem)]">
-      <UCard class="council-card overflow-hidden">
-        <div class="scene">
-          <div class="room-glow" />
-
-          <div class="round-pill">
-            <UBadge color="neutral" variant="soft">{{ roundLabel }}</UBadge>
-            <UBadge :color="hasActiveMeeting ? 'success' : 'neutral'" variant="soft">{{ meeting?.status || 'idle' }}</UBadge>
-          </div>
-
-          <div class="table-core">
-            <div class="table-center">
-              <p class="text-xs uppercase tracking-[0.3em] text-white/75">Meeting Topic</p>
-              <p class="text-sm sm:text-base text-white font-semibold">{{ meeting?.topic || 'No meeting selected' }}</p>
-            </div>
-          </div>
-
-          <div
-            v-for="(member, index) in roomMembers"
-            :key="member.id"
-            class="seat"
-            :style="seatStyle(index, roomMembers.length, member.accentColor)"
-            :class="{ speaking: activeSpeaker?.member?.id === member.id }"
-          >
-            <div class="avatar-ring">
-              <span>{{ member.name.slice(0, 1).toUpperCase() }}</span>
-            </div>
-            <p class="seat-name">{{ member.name }}</p>
-            <p class="seat-title">{{ member.title }}</p>
-            <div
-              v-if="activeSpeaker?.member?.id === member.id"
-              class="speech-bubble"
-            >
-              {{ activeSpeaker?.content }}
-            </div>
-          </div>
-
-          <div v-if="!hasActiveMeeting" class="start-overlay">
-            <UCard class="start-card">
-              <template #header>
-                <h2 class="font-semibold">Start Meeting</h2>
-              </template>
-              <div class="space-y-3">
-                <UTextarea v-model="topic" :rows="3" placeholder="What should the council discuss?" />
-                <div class="grid grid-cols-2 gap-2">
-                  <UInput v-model.number="rounds" type="number" min="1" max="5" />
-                  <UButton :loading="creating" icon="i-lucide-play" block @click="startMeeting">Start council</UButton>
-                </div>
-              </div>
-            </UCard>
-          </div>
-        </div>
-      </UCard>
-
-      <div class="flex flex-col gap-4 min-h-0">
-        <UCard class="council-card">
-          <template #header>
-            <div class="flex items-center justify-between gap-2">
-              <h2 class="font-semibold">Live Transcript</h2>
-              <UButton
-                icon="i-lucide-square"
-                color="error"
-                variant="soft"
-                size="xs"
-                :loading="stopping"
-                :disabled="!hasActiveMeeting"
-                @click="stopMeeting"
-              >
-                Stop meeting
-              </UButton>
-            </div>
-          </template>
-
-          <div class="transcript space-y-3">
-            <div
-              v-for="message in transcript"
-              :key="message.id"
-              class="line"
-              :class="`role-${message.role}`"
-            >
-              <div class="line-head">
-                <span class="font-semibold">
-                  {{ message.role === 'agent' ? message.member?.name : message.role === 'user' ? 'You' : 'System' }}
-                </span>
-                <span class="text-xs text-muted">{{ new Date(message.createdAt).toLocaleTimeString() }}</span>
-              </div>
-              <p>{{ message.content }}</p>
-            </div>
-            <p v-if="transcript.length === 0" class="text-sm text-muted">No messages yet. Start a meeting to begin.</p>
-          </div>
-        </UCard>
-
-        <UCard v-if="hasActiveMeeting" class="council-card">
-          <template #header>
-            <h2 class="font-semibold">Interrupt Council</h2>
-          </template>
-          <div class="space-y-3">
-            <UTextarea
-              v-model="userNudge"
-              :rows="3"
-              placeholder="Interrupt with new constraints or a direction change..."
+  <UPage>
+    <UPageHeader
+      headline="Council Chamber"
+      title="Agent Roundtable"
+      description="Run, monitor, and steer multi-agent deliberation in real time."
+    >
+      <template #links>
+        <UButton
+          icon="i-lucide-refresh-cw"
+          color="neutral"
+          variant="outline"
+          @click="refreshMeetings()"
+        >
+          Refresh
+        </UButton>
+      </template>
+      <template #default>
+        <div class="max-w-md">
+          <UFormField label="Meeting">
+            <USelect
+              v-model="selectedMeetingId"
+              :items="meetingOptions"
+              placeholder="Select a meeting"
             />
-            <UButton icon="i-lucide-send" block variant="soft" @click="sendNudge">
-              Send interruption
-            </UButton>
+          </UFormField>
+        </div>
+      </template>
+    </UPageHeader>
+
+    <UPageBody>
+      <UPageGrid class="gap-4 xl:grid-cols-[1fr_420px]">
+        <UCard variant="soft" class="overflow-hidden">
+          <div class="scene">
+            <div class="room-glow" />
+
+            <div class="round-pill">
+              <UBadge color="neutral" variant="soft">
+                {{ roundLabel }}
+              </UBadge>
+              <UBadge :color="hasActiveMeeting ? 'success' : 'neutral'" variant="soft">
+                {{ meeting?.status || 'idle' }}
+              </UBadge>
+              <UBadge color="neutral" variant="outline">
+                {{ roomMembers.length }} active members
+              </UBadge>
+            </div>
+
+            <div class="table-core">
+              <div class="table-center">
+                <p class="text-xs uppercase tracking-[0.3em] text-white/75">
+                  Meeting Topic
+                </p>
+                <p class="text-sm font-semibold text-white sm:text-base">
+                  {{ meeting?.topic || 'No meeting selected' }}
+                </p>
+              </div>
+            </div>
+
+            <div
+              v-for="(member, index) in roomMembers"
+              :key="member.id"
+              class="seat"
+              :style="seatStyle(index, roomMembers.length, member.accentColor)"
+              :class="{ speaking: activeSpeaker?.member?.id === member.id }"
+            >
+              <div class="avatar-ring">
+                <span>{{ member.name.slice(0, 1).toUpperCase() }}</span>
+              </div>
+              <p class="seat-name">
+                {{ member.name }}
+              </p>
+              <p class="seat-title">
+                {{ member.title }}
+              </p>
+              <UCard
+                v-if="activeSpeaker?.member?.id === member.id"
+                variant="solid"
+                class="speech-bubble"
+              >
+                {{ activeSpeaker?.content }}
+              </UCard>
+            </div>
+
+            <div v-if="!hasActiveMeeting" class="start-overlay">
+              <UCard
+                class="start-card"
+                variant="soft"
+              >
+                <template #header>
+                  <h2 class="font-semibold">
+                    Start Meeting
+                  </h2>
+                </template>
+                <UForm :state="{ topic, rounds }" class="space-y-3" @submit="startMeeting">
+                  <UFormField label="Topic">
+                    <UTextarea v-model="topic" :rows="3" placeholder="What should the council discuss?" />
+                  </UFormField>
+                  <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <UFormField label="Rounds">
+                      <UInputNumber
+                        v-model="rounds"
+                        :min="1"
+                        :max="5"
+                        class="w-full"
+                      />
+                    </UFormField>
+                    <div class="flex items-end">
+                      <UButton
+                        type="submit"
+                        :loading="creating"
+                        icon="i-lucide-play"
+                        block
+                      >
+                        Start council
+                      </UButton>
+                    </div>
+                  </div>
+                </UForm>
+              </UCard>
+            </div>
           </div>
         </UCard>
 
-        <UCard v-if="verdict" class="council-card">
-          <template #header>
-            <h2 class="font-semibold">Final Verdict</h2>
-          </template>
-          <div class="space-y-2 text-sm">
-            <p><strong>Conclusion:</strong> {{ verdict.summary }}</p>
-            <p><strong>Winning idea:</strong> {{ verdict.winningIdea }}</p>
-            <p><strong>Vote:</strong> {{ verdict.voteResult }}</p>
-          </div>
-        </UCard>
-      </div>
-    </div>
-  </div>
+        <div class="flex min-h-0 flex-col gap-4">
+          <UCard variant="soft">
+            <template #header>
+              <div class="flex items-center justify-between gap-2">
+                <h2 class="font-semibold">
+                  Live Transcript
+                </h2>
+                <UButton
+                  icon="i-lucide-square"
+                  color="error"
+                  variant="soft"
+                  size="xs"
+                  :loading="stopping"
+                  :disabled="!hasActiveMeeting"
+                  @click="stopMeeting"
+                >
+                  Stop meeting
+                </UButton>
+              </div>
+            </template>
+
+            <UEmpty
+              v-if="transcript.length === 0"
+              icon="i-lucide-messages-square"
+              title="No messages yet"
+              description="Start a meeting to begin the roundtable transcript."
+            />
+            <UScrollArea v-else class="h-[380px] pr-1">
+              <div class="space-y-3 pr-2">
+                <UCard
+                  v-for="message in transcript"
+                  :key="message.id"
+                  variant="subtle"
+                  :class="[
+                    'line',
+                    `role-${message.role}`
+                  ]"
+                >
+                  <div class="mb-1.5 flex items-center justify-between gap-2">
+                    <UBadge :color="roleColor(message.role)" variant="soft">
+                      {{ roleLabel(message) }}
+                    </UBadge>
+                    <span class="text-xs text-muted">{{ new Date(message.createdAt).toLocaleTimeString() }}</span>
+                  </div>
+                  <p class="text-sm">
+                    {{ message.content }}
+                  </p>
+                </UCard>
+              </div>
+            </UScrollArea>
+          </UCard>
+
+          <UCard v-if="hasActiveMeeting" variant="soft">
+            <template #header>
+              <h2 class="font-semibold">
+                Interrupt Council
+              </h2>
+            </template>
+            <UForm :state="{ userNudge }" class="space-y-3" @submit="sendNudge">
+              <UFormField label="Interruption">
+                <UTextarea
+                  v-model="userNudge"
+                  :rows="3"
+                  placeholder="Interrupt with new constraints or a direction change..."
+                />
+              </UFormField>
+              <UButton
+                type="submit"
+                icon="i-lucide-send"
+                block
+                variant="soft"
+              >
+                Send interruption
+              </UButton>
+            </UForm>
+          </UCard>
+
+          <UCard v-if="verdict" variant="soft">
+            <template #header>
+              <h2 class="font-semibold">
+                Final Verdict
+              </h2>
+            </template>
+            <div class="space-y-2 text-sm">
+              <UAlert
+                color="success"
+                variant="subtle"
+                icon="i-lucide-check-circle-2"
+                title="Conclusion"
+                :description="verdict.summary"
+              />
+              <UAlert
+                color="info"
+                variant="subtle"
+                icon="i-lucide-lightbulb"
+                title="Winning idea"
+                :description="verdict.winningIdea"
+              />
+              <UAlert
+                color="warning"
+                variant="subtle"
+                icon="i-lucide-scale"
+                title="Vote"
+                :description="verdict.voteResult"
+              />
+            </div>
+          </UCard>
+        </div>
+      </UPageGrid>
+    </UPageBody>
+  </UPage>
 </template>
 
 <style scoped>
-.council-card {
-  background:
-    radial-gradient(circle at 20% 10%, rgba(251, 191, 36, 0.14), transparent 38%),
-    radial-gradient(circle at 85% 20%, rgba(59, 130, 246, 0.14), transparent 40%),
-    color-mix(in srgb, var(--ui-bg) 90%, black);
-  border: 1px solid color-mix(in srgb, var(--ui-border) 60%, transparent);
-}
-
 .scene {
   position: relative;
   min-height: 760px;
-  border-radius: 1rem;
   overflow: hidden;
+  border-radius: 1rem;
   background:
     radial-gradient(circle at 50% 40%, rgba(120, 53, 15, 0.62), rgba(23, 23, 23, 0.95)),
     linear-gradient(135deg, rgba(30, 64, 175, 0.28), rgba(120, 53, 15, 0.28));
@@ -350,9 +468,10 @@ onUnmounted(() => {
   position: absolute;
   top: 1rem;
   left: 1rem;
+  z-index: 6;
   display: flex;
   gap: 0.4rem;
-  z-index: 6;
+  flex-wrap: wrap;
 }
 
 .room-glow {
@@ -429,10 +548,7 @@ onUnmounted(() => {
 .speech-bubble {
   margin: 0.5rem auto 0;
   width: 230px;
-  background: rgba(255, 255, 255, 0.96);
   color: #111827;
-  border-radius: 0.75rem;
-  padding: 0.6rem 0.7rem;
   font-size: 0.8rem;
   line-height: 1.35;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.32);
@@ -451,23 +567,8 @@ onUnmounted(() => {
   width: min(620px, 92%);
 }
 
-.transcript {
-  max-height: 380px;
-  overflow: auto;
-}
-
 .line {
-  padding: 0.7rem 0.8rem;
-  border-radius: 0.75rem;
   border: 1px solid var(--ui-border);
-  background: color-mix(in srgb, var(--ui-bg) 85%, black);
-}
-
-.line-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.2rem;
 }
 
 .role-agent {

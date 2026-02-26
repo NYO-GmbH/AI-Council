@@ -1,58 +1,60 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   modules: [
-    '@nuxt/eslint',
-    '@nuxt/ui',
-    '@nuxtjs/mdc',
-    '@nuxthub/core',
-    'nuxt-charts'
+    "@nuxt/eslint",
+    "@nuxt/ui",
+    "@nuxtjs/mdc",
+    "@nuxthub/core",
+    "nuxt-charts",
   ],
 
   devtools: {
-    enabled: true
+    enabled: true,
   },
 
-  css: ['~/assets/css/main.css'],
+  css: ["~/assets/css/main.css"],
+
+  ssr: false,
 
   mdc: {
     headings: {
-      anchorLinks: false
+      anchorLinks: false,
     },
     highlight: {
       // noApiRoute: true
-      shikiEngine: 'javascript'
-    }
+      shikiEngine: "javascript",
+    },
   },
 
   experimental: {
-    viewTransition: true
+    viewTransition: true,
   },
 
-  compatibilityDate: '2024-07-11',
+  compatibilityDate: "2024-07-11",
 
   nitro: {
     experimental: {
-      openAPI: true
-    }
+      openAPI: true,
+    },
   },
 
   hub: {
-    db: 'sqlite',
-    blob: true
+    db: "sqlite",
+    blob: true,
   },
 
   vite: {
     optimizeDeps: {
-      include: ['striptags']
-    }
+      include: ["striptags"],
+    },
   },
 
   eslint: {
     config: {
       stylistic: {
-        commaDangle: 'never',
-        braceStyle: '1tbs'
-      }
-    }
-  }
-})
+        commaDangle: "never",
+        braceStyle: "1tbs",
+      },
+    },
+  },
+});

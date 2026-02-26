@@ -27,3 +27,5 @@ logs
 .history
 .vercel
 .env*.local
+
+db.sqlite

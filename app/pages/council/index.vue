@@ -45,6 +45,8 @@ const creating = ref(false);
 const ticking = ref(false);
 const stopping = ref(false);
 const rounds = ref(2);
+const transcriptOpen = ref(false);
+const verdictOpen = ref(false);
 let timer: ReturnType<typeof setInterval> | null = null;
 
 const { data: members } = await useFetch<CouncilMember[]>(
@@ -85,14 +87,40 @@ const verdict = computed(() => meeting.value?.state?.verdict);
 
 function seatStyle(index: number, total: number, color: string) {
   const angle = ((Math.PI * 2) / Math.max(total, 1)) * index - Math.PI / 2;
-  const radius = 32;
+  const radius = 28;
   const x = 50 + Math.cos(angle) * radius;
   const y = 50 + Math.sin(angle) * radius;
+  let bubbleShift = "0px";
+  if (x < 30) {
+    bubbleShift = "48px";
+  } else if (x > 70) {
+    bubbleShift = "-48px";
+  }
   return {
     left: `${x}%`,
     top: `${y}%`,
+    "--bubble-shift": bubbleShift,
     "--seat-color": color,
   };
+}
+
+function isBottomSeat(index: number, total: number) {
+  const angle = ((Math.PI * 2) / Math.max(total, 1)) * index - Math.PI / 2;
+  const y = 50 + Math.sin(angle) * 28;
+  return y > 58;
+}
+
+function speechContentFor(message: CouncilMessage | undefined) {
+  if (!message?.content) {
+    return "";
+  }
+  const speaker = message.member?.name?.trim();
+  if (!speaker) {
+    return message.content;
+  }
+  const escaped = speaker.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`^${escaped}:\\s*`, "i");
+  return message.content.replace(pattern, "");
 }
 
 function roleLabel(message: CouncilMessage) {
@@ -227,6 +255,17 @@ watch(selectedMeetingId, async (id) => {
   }
 });
 
+const isInitialVerdictWatch = ref(true);
+watch(verdict, (value, previous) => {
+  if (isInitialVerdictWatch.value) {
+    isInitialVerdictWatch.value = false;
+    return;
+  }
+  if (value && !previous) {
+    verdictOpen.value = true;
+  }
+});
+
 onMounted(() => {
   timer = setInterval(() => {
     tickCouncil();
@@ -271,7 +310,7 @@ onUnmounted(() => {
     </UPageHeader>
 
     <UPageBody>
-      <UPageGrid class="gap-4 xl:grid-cols-[1fr_420px]">
+      <div class="space-y-4">
         <UCard variant="soft" class="overflow-hidden">
           <div class="scene">
             <div class="room-glow" />
@@ -307,7 +346,10 @@ onUnmounted(() => {
               :key="member.id"
               class="seat"
               :style="seatStyle(index, roomMembers.length, member.accentColor)"
-              :class="{ speaking: activeSpeaker?.member?.id === member.id }"
+              :class="{
+                speaking: activeSpeaker?.member?.id === member.id,
+                'bubble-above': isBottomSeat(index, roomMembers.length),
+              }"
             >
               <div class="avatar-ring">
                 <span>{{ member.name.slice(0, 1).toUpperCase() }}</span>
@@ -323,7 +365,7 @@ onUnmounted(() => {
                 variant="subtle"
                 class="speech-bubble"
               >
-                {{ activeSpeaker?.content }}
+                {{ speechContentFor(activeSpeaker || undefined) }}
               </UCard>
             </div>
 
@@ -371,55 +413,38 @@ onUnmounted(() => {
           </div>
         </UCard>
 
+        <div class="flex flex-wrap items-center gap-2">
+          <UButton
+            icon="i-lucide-scroll-text"
+            color="neutral"
+            variant="soft"
+            @click="transcriptOpen = true"
+          >
+            Show live transcript
+          </UButton>
+          <UButton
+            icon="i-lucide-gavel"
+            color="neutral"
+            variant="soft"
+            :disabled="!verdict"
+            @click="verdictOpen = true"
+          >
+            Show final verdict
+          </UButton>
+          <UButton
+            icon="i-lucide-square"
+            color="error"
+            variant="soft"
+            size="sm"
+            :loading="stopping"
+            :disabled="!hasActiveMeeting"
+            @click="stopMeeting"
+          >
+            Stop meeting
+          </UButton>
+        </div>
+
         <div class="flex min-h-0 flex-col gap-4">
-          <UCard variant="soft">
-            <template #header>
-              <div class="flex items-center justify-between gap-2">
-                <h2 class="font-semibold">Live Transcript</h2>
-                <UButton
-                  icon="i-lucide-square"
-                  color="error"
-                  variant="soft"
-                  size="xs"
-                  :loading="stopping"
-                  :disabled="!hasActiveMeeting"
-                  @click="stopMeeting"
-                >
-                  Stop meeting
-                </UButton>
-              </div>
-            </template>
-
-            <UEmpty
-              v-if="transcript.length === 0"
-              icon="i-lucide-messages-square"
-              title="No messages yet"
-              description="Start a meeting to begin the roundtable transcript."
-            />
-            <UScrollArea v-else class="h-[380px] pr-1">
-              <div class="space-y-3 pr-2">
-                <UCard
-                  v-for="message in transcript"
-                  :key="message.id"
-                  variant="subtle"
-                  :class="['line', `role-${message.role}`]"
-                >
-                  <div class="mb-1.5 flex items-center justify-between gap-2">
-                    <UBadge :color="roleColor(message.role)" variant="soft">
-                      {{ roleLabel(message) }}
-                    </UBadge>
-                    <span class="text-xs text-muted">{{
-                      new Date(message.createdAt).toLocaleTimeString()
-                    }}</span>
-                  </div>
-                  <p class="text-sm">
-                    {{ message.content }}
-                  </p>
-                </UCard>
-              </div>
-            </UScrollArea>
-          </UCard>
-
           <UCard v-if="hasActiveMeeting" variant="soft">
             <template #header>
               <h2 class="font-semibold">Interrupt Council</h2>
@@ -437,37 +462,80 @@ onUnmounted(() => {
               </UButton>
             </UForm>
           </UCard>
-
-          <UCard v-if="verdict" variant="soft">
-            <template #header>
-              <h2 class="font-semibold">Final Verdict</h2>
-            </template>
-            <div class="space-y-2 text-sm">
-              <UAlert
-                color="success"
-                variant="subtle"
-                icon="i-lucide-check-circle-2"
-                title="Conclusion"
-                :description="verdict.summary"
-              />
-              <UAlert
-                color="info"
-                variant="subtle"
-                icon="i-lucide-lightbulb"
-                title="Winning idea"
-                :description="verdict.winningIdea"
-              />
-              <UAlert
-                color="warning"
-                variant="subtle"
-                icon="i-lucide-scale"
-                title="Vote"
-                :description="verdict.voteResult"
-              />
-            </div>
-          </UCard>
         </div>
-      </UPageGrid>
+      </div>
+
+      <USlideover
+        v-model:open="transcriptOpen"
+        title="Live Transcript"
+        side="right"
+        :ui="{ content: 'max-w-xl w-full' }"
+      >
+        <template #body>
+          <UEmpty
+            v-if="transcript.length === 0"
+            icon="i-lucide-messages-square"
+            title="No messages yet"
+            description="Start a meeting to begin the roundtable transcript."
+          />
+          <UScrollArea v-else class="pr-1">
+            <div class="space-y-3 pr-2">
+              <UCard
+                v-for="message in transcript"
+                :key="message.id"
+                variant="subtle"
+                :class="['line', `role-${message.role}`]"
+              >
+                <div class="mb-1.5 flex items-center justify-between gap-2">
+                  <UBadge :color="roleColor(message.role)" variant="soft">
+                    {{ roleLabel(message) }}
+                  </UBadge>
+                  <span class="text-xs text-muted">{{
+                    new Date(message.createdAt).toLocaleTimeString()
+                  }}</span>
+                </div>
+                <p class="text-sm">
+                  {{ message.content }}
+                </p>
+              </UCard>
+            </div>
+          </UScrollArea>
+        </template>
+      </USlideover>
+
+      <UModal v-model:open="verdictOpen" title="Final Verdict">
+        <template #body>
+          <div v-if="verdict" class="space-y-2 text-sm">
+            <UAlert
+              color="success"
+              variant="subtle"
+              icon="i-lucide-check-circle-2"
+              title="Conclusion"
+              :description="verdict.summary"
+            />
+            <UAlert
+              color="info"
+              variant="subtle"
+              icon="i-lucide-lightbulb"
+              title="Winning idea"
+              :description="verdict.winningIdea"
+            />
+            <UAlert
+              color="warning"
+              variant="subtle"
+              icon="i-lucide-scale"
+              title="Vote"
+              :description="verdict.voteResult"
+            />
+          </div>
+          <UEmpty
+            v-else
+            icon="i-lucide-hourglass"
+            title="No verdict yet"
+            description="The council will publish a final verdict when deliberation concludes."
+          />
+        </template>
+      </UModal>
     </UPageBody>
   </UContainer>
 </template>
@@ -581,16 +649,25 @@ onUnmounted(() => {
 }
 
 .speech-bubble {
-  margin: 0.5rem auto 0;
-  position: relative;
+  margin: 0;
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 0.5rem);
+  transform: translateX(calc(-50% + var(--bubble-shift, 0px)));
   z-index: 10;
   width: 230px;
+  max-width: min(230px, calc(100vw - 4rem));
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid rgba(17, 24, 39, 0.14);
   color: #111827;
   font-size: 0.8rem;
   line-height: 1.35;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.32);
+}
+
+.bubble-above .speech-bubble {
+  top: auto;
+  bottom: calc(100% + 0.5rem);
 }
 
 .start-overlay {

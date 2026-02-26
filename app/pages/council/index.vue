@@ -36,6 +36,29 @@ interface CouncilMeeting {
   messages?: CouncilMessage[];
 }
 
+type TickStreamEvent =
+  | {
+      type: "status";
+      status: "completed" | "paused" | "idle";
+      verdict?: MeetingState["verdict"] | null;
+    }
+  | {
+      type: "speaker";
+      member: Pick<CouncilMember, "id" | "name" | "title" | "accentColor">;
+    }
+  | {
+      type: "message_content";
+      content: string;
+    }
+  | {
+      type: "message";
+      message: CouncilMessage;
+    }
+  | {
+      type: "error";
+      message: string;
+    };
+
 const toast = useToast();
 const selectedMeetingId = ref<string>();
 const meeting = ref<CouncilMeeting | null>(null);
@@ -44,6 +67,7 @@ const userNudge = ref("");
 const creating = ref(false);
 const ticking = ref(false);
 const stopping = ref(false);
+const deleting = ref(false);
 const rounds = ref(2);
 const transcriptOpen = ref(false);
 const verdictOpen = ref(false);
@@ -74,7 +98,9 @@ const roomMembers = computed(
 );
 const transcript = computed(() => meeting.value?.messages || []);
 const activeSpeaker = computed(() =>
-  [...transcript.value].reverse().find((message) => message.role === "agent"),
+  meeting.value?.status === "active"
+    ? [...transcript.value].reverse().find((message) => message.role === "agent")
+    : undefined,
 );
 const hasActiveMeeting = computed(() => meeting.value?.status === "active");
 const roundLabel = computed(() => {
@@ -147,6 +173,54 @@ async function loadMeeting(id: string) {
   meeting.value = await $fetch(`/api/council/meetings/${id}`);
 }
 
+function upsertStreamingMessage(content: string, member: CouncilMember | null) {
+  if (!meeting.value) {
+    return;
+  }
+  const streamId = "__streaming__";
+  if (!meeting.value.messages) {
+    meeting.value.messages = [];
+  }
+  const existingIndex = meeting.value.messages.findIndex(
+    (message) => message.id === streamId,
+  );
+  const streamingMessage: CouncilMessage = {
+    id: streamId,
+    role: "agent",
+    content,
+    createdAt: new Date().toISOString(),
+    member,
+  };
+
+  if (existingIndex === -1) {
+    meeting.value.messages.push(streamingMessage);
+    return;
+  }
+
+  const existingMessage = meeting.value.messages[existingIndex];
+  if (!existingMessage) {
+    meeting.value.messages.push(streamingMessage);
+    return;
+  }
+
+  meeting.value.messages.splice(existingIndex, 1, {
+    id: existingMessage.id,
+    role: existingMessage.role,
+    content,
+    createdAt: existingMessage.createdAt,
+    member,
+  });
+}
+
+function removeStreamingMessage() {
+  if (!meeting.value?.messages) {
+    return;
+  }
+  meeting.value.messages = meeting.value.messages.filter(
+    (message) => message.id !== "__streaming__",
+  );
+}
+
 async function tickCouncil(userMessage?: string) {
   if (!selectedMeetingId.value || ticking.value || !hasActiveMeeting.value) {
     return;
@@ -156,13 +230,98 @@ async function tickCouncil(userMessage?: string) {
     const payload = userMessage?.trim()
       ? { userMessage: userMessage.trim() }
       : {};
-    await $fetch(`/api/council/meetings/${selectedMeetingId.value}/tick`, {
-      method: "POST",
-      body: payload,
-    });
+    const response = await fetch(
+      `/api/council/meetings/${selectedMeetingId.value}/tick`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!response.ok) {
+      const failure = await response.text();
+      let message = "Failed to progress meeting.";
+      if (failure) {
+        try {
+          const parsed = JSON.parse(failure) as { statusMessage?: string };
+          message = parsed.statusMessage || message;
+        } catch {
+          message = failure;
+        }
+      }
+      throw new Error(message);
+    }
+
+    if (!response.body) {
+      await loadMeeting(selectedMeetingId.value);
+      await refreshMeetings();
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let streamMember: CouncilMember | null = null;
+
+    const consumeEvent = (line: string) => {
+      if (!line.trim()) {
+        return;
+      }
+      const event = JSON.parse(line) as TickStreamEvent;
+      if (event.type === "speaker") {
+        streamMember = {
+          ...event.member,
+          isActive: true,
+        };
+        upsertStreamingMessage("", streamMember);
+        return;
+      }
+      if (event.type === "message_content") {
+        upsertStreamingMessage(event.content, streamMember);
+        return;
+      }
+      if (event.type === "message") {
+        removeStreamingMessage();
+        if (!meeting.value) {
+          return;
+        }
+        if (!meeting.value.messages) {
+          meeting.value.messages = [];
+        }
+        meeting.value.messages.push(event.message);
+        return;
+      }
+      if (event.type === "status" && event.status === "completed" && meeting.value) {
+        meeting.value.status = "completed";
+      }
+      if (event.type === "error") {
+        throw new Error(event.message);
+      }
+    };
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) {
+        break;
+      }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        consumeEvent(line);
+      }
+    }
+    const tail = buffer.trim();
+    if (tail) {
+      consumeEvent(tail);
+    }
+    removeStreamingMessage();
     await loadMeeting(selectedMeetingId.value);
     await refreshMeetings();
   } catch (error: unknown) {
+    removeStreamingMessage();
     const err = error as {
       data?: { statusMessage?: string };
       message?: string;
@@ -224,6 +383,58 @@ async function stopMeeting() {
     await refreshMeetings();
   } finally {
     stopping.value = false;
+  }
+}
+
+async function deleteMeeting() {
+  if (!selectedMeetingId.value || deleting.value) {
+    return;
+  }
+
+  const targetId = selectedMeetingId.value;
+  const target = (meetings.value || []).find((item) => item.id === targetId);
+  const targetLabel = target?.topic || "this meeting";
+  const confirmed = window.confirm(`Delete "${targetLabel}"? This cannot be undone.`);
+  if (!confirmed) {
+    return;
+  }
+
+  deleting.value = true;
+  try {
+    await $fetch(`/api/council/meetings/${targetId}`, {
+      method: "DELETE",
+    });
+
+    await refreshMeetings();
+    const updatedMeetings = meetings.value || [];
+    const next =
+      updatedMeetings.find((item) => item.status === "active") || updatedMeetings[0];
+
+    selectedMeetingId.value = next?.id;
+    if (next?.id) {
+      await loadMeeting(next.id);
+    } else {
+      meeting.value = null;
+    }
+
+    toast.add({
+      color: "success",
+      icon: "i-lucide-trash-2",
+      description: "Meeting deleted.",
+    });
+  } catch (error: unknown) {
+    const err = error as {
+      data?: { statusMessage?: string };
+      message?: string;
+    };
+    toast.add({
+      color: "error",
+      icon: "i-lucide-alert-circle",
+      description:
+        err?.data?.statusMessage || err?.message || "Failed to delete meeting.",
+    });
+  } finally {
+    deleting.value = false;
   }
 }
 
@@ -442,6 +653,17 @@ onUnmounted(() => {
           >
             Stop meeting
           </UButton>
+          <UButton
+            icon="i-lucide-trash-2"
+            color="error"
+            variant="outline"
+            size="sm"
+            :loading="deleting"
+            :disabled="!selectedMeetingId"
+            @click="deleteMeeting"
+          >
+            Delete meeting
+          </UButton>
         </div>
 
         <div class="flex min-h-0 flex-col gap-4">
@@ -612,6 +834,7 @@ onUnmounted(() => {
 }
 
 .avatar-ring {
+  position: relative;
   width: 70px;
   height: 70px;
   margin: 0 auto;
@@ -623,6 +846,17 @@ onUnmounted(() => {
   background: color-mix(in srgb, var(--seat-color) 70%, black);
   border: 2px solid color-mix(in srgb, var(--seat-color) 68%, white);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
+}
+
+.avatar-ring::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--seat-color) 75%, white);
+  opacity: 0;
+  transform: scale(1);
+  pointer-events: none;
 }
 
 .seat-name {
@@ -643,9 +877,26 @@ onUnmounted(() => {
 }
 
 .speaking .avatar-ring {
-  box-shadow:
-    0 0 0 6px color-mix(in srgb, var(--seat-color) 30%, transparent),
-    0 14px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+}
+
+.speaking .avatar-ring::after {
+  animation: speaker-pulse 1.3s ease-out infinite;
+}
+
+@keyframes speaker-pulse {
+  0% {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.45);
+  }
 }
 
 .speech-bubble {

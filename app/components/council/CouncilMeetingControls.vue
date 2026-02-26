@@ -8,20 +8,12 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'show-transcript' | 'show-verdict' | 'stop' | 'delete'): void
+  (e: 'show-verdict' | 'stop' | 'delete'): void
 }>()
 </script>
 
 <template>
   <div class="flex flex-wrap items-center gap-2">
-    <UButton
-      icon="i-lucide-scroll-text"
-      color="neutral"
-      variant="soft"
-      @click="emit('show-transcript')"
-    >
-      Show live transcript
-    </UButton>
     <UButton
       icon="i-lucide-gavel"
       color="neutral"

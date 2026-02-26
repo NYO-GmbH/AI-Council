@@ -1,59 +1,53 @@
-import { db, schema } from "~~/server/db";
-import { z } from "zod";
+import { db, schema } from '~~/server/db'
+import { getActiveCouncilMembersOrThrow } from '~~/server/utils/council/meetings'
+import { z } from 'zod'
 
 const bodySchema = z.object({
   topic: z.string().min(4).max(240),
-  rounds: z.number().int().min(1).max(5).default(2),
-});
+  rounds: z.number().int().min(1).max(5).default(2)
+})
 
 export default defineEventHandler(async (event) => {
-  const { topic, rounds } = await readValidatedBody(event, bodySchema.parse);
+  const { topic, rounds } = await readValidatedBody(event, bodySchema.parse)
 
-  const members = await db.query.councilMembers.findMany();
-  const activeMembers = members.filter((member) => member.isActive);
+  const activeMembers = await getActiveCouncilMembersOrThrow(
+    'You need at least one active council member to start a meeting.'
+  )
 
-  if (activeMembers.length === 0) {
-    throw createError({
-      statusCode: 400,
-      statusMessage:
-        "You need at least one active council member to start a meeting.",
-    });
-  }
-
-  const queue = activeMembers.map((member) => member.id);
+  const queue = activeMembers.map(member => member.id)
 
   const [meeting] = await db
     .insert(schema.councilMeetings)
     .values({
       topic,
-      status: "active",
+      status: 'active',
       state: {
         queue,
         rounds: 0,
-        maxRounds: rounds,
-      },
+        maxRounds: rounds
+      }
     })
-    .returning();
+    .returning()
 
   if (!meeting) {
     throw createError({
       statusCode: 500,
-      statusMessage: "Failed to create meeting.",
-    });
+      statusMessage: 'Failed to create meeting.'
+    })
   }
 
   await db.insert(schema.councilMessages).values([
     {
       meetingId: meeting.id,
-      role: "system",
-      content: `Council meeting opened: ${topic}`,
+      role: 'system',
+      content: `Council meeting opened: ${topic}`
     },
     {
       meetingId: meeting.id,
-      role: "user",
-      content: topic,
-    },
-  ]);
+      role: 'user',
+      content: topic
+    }
+  ])
 
-  return meeting;
-});
+  return meeting
+})

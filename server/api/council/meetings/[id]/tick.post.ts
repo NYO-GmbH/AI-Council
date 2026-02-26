@@ -1,276 +1,182 @@
-import { generateText, streamText } from "ai";
-import { and, asc, eq } from "drizzle-orm";
-import { db, schema } from "~~/server/db";
-import { z } from "zod";
-import { defaultModel } from "../../../../utils/lmstudio";
+import { streamText } from 'ai'
+import { eq } from 'drizzle-orm'
+import { db, schema } from '~~/server/db'
+import { defaultModel } from '~~/server/utils/lmstudio'
+import {
+  getActiveCouncilMembersOrThrow,
+  getMeetingWithMessagesOrThrow
+} from '~~/server/utils/council/meetings'
+import { clipText, shuffle } from '~~/server/utils/council/text'
+import {
+  toSingleEventResponse,
+  toStreamingResponse,
+  type TickStreamEvent
+} from '~~/server/utils/council/tick'
+import { generateVerdict } from '~~/server/utils/council/verdict'
+import { z } from 'zod'
 
 const bodySchema = z.object({
-  userMessage: z.string().min(1).max(400).optional(),
-});
-
-function shuffle<T>(items: T[]) {
-  return [...items].sort(() => Math.random() - 0.5);
-}
-
-function clipText(text: string, max = 320) {
-  const normalized = text.replace(/\s+/g, " ").trim();
-  if (normalized.length <= max) {
-    return normalized;
-  }
-  return `${normalized.slice(0, max - 3)}...`;
-}
-
-type TickStreamEvent =
-  | { type: "status"; status: "completed" | "paused" | "idle"; verdict?: unknown }
-  | { type: "speaker"; member: { id: string; name: string; title: string; accentColor: string } }
-  | { type: "message_content"; content: string }
-  | {
-      type: "message";
-      message: {
-        id: string;
-        meetingId: string;
-        memberId: string | null;
-        role: "agent";
-        content: string;
-        createdAt: Date;
-        member: { id: string; name: string; title: string; accentColor: string };
-      };
-    }
-  | { type: "error"; message: string };
-
-async function generateVerdict(topic: string, transcript: string) {
-  const { text } = await generateText({
-    model: defaultModel,
-    system: `You are a neutral council moderator.
-Create a concise final summary and a vote result.
-Return plain text in this exact format:
-SUMMARY: <1-2 sentences>
-WINNING_IDEA: <single sentence>
-VOTE_RESULT: <example "Astra 3, Forge 2, Lumen 1">`,
-    prompt: `Meeting topic: ${topic}\n\nTranscript:\n${transcript || "No transcript."}`,
-  });
-
-  const lines = text.split("\n").map((line) => line.trim());
-  const summary =
-    lines
-      .find((line) => line.startsWith("SUMMARY:"))
-      ?.replace("SUMMARY:", "")
-      .trim() || "The council discussion is complete.";
-  const winningIdea =
-    lines
-      .find((line) => line.startsWith("WINNING_IDEA:"))
-      ?.replace("WINNING_IDEA:", "")
-      .trim() || "No clear winning idea was identified.";
-  const voteResult =
-    lines
-      .find((line) => line.startsWith("VOTE_RESULT:"))
-      ?.replace("VOTE_RESULT:", "")
-      .trim() || "No vote result available.";
-
-  return {
-    summary: clipText(summary, 420),
-    winningIdea: clipText(winningIdea, 220),
-    voteResult: clipText(voteResult, 220),
-  };
-}
+  userMessage: z.string().min(1).max(400).optional()
+})
 
 export default defineEventHandler(async (event) => {
-  const { id } = getRouterParams(event);
-  const { userMessage } = await readValidatedBody(event, bodySchema.parse);
+  const { id } = getRouterParams(event)
+  const { userMessage } = await readValidatedBody(event, bodySchema.parse)
 
-  const meeting = await db.query.councilMeetings.findFirst({
-    where: () => and(eq(schema.councilMeetings.id, id as string)),
-    with: {
-      messages: {
-        orderBy: () => asc(schema.councilMessages.createdAt),
-        with: {
-          member: true,
-        },
-      },
-    },
-  });
+  const meeting = await getMeetingWithMessagesOrThrow(id as string)
 
-  if (!meeting) {
-    throw createError({
-      statusCode: 404,
-      statusMessage: "Council meeting not found.",
-    });
+  if (meeting.status === 'completed') {
+    return toSingleEventResponse({
+      type: 'status',
+      status: 'completed',
+      verdict: meeting.state?.verdict || null
+    })
   }
 
-  if (meeting.status === "completed") {
-    return new Response(
-      JSON.stringify({
-        type: "status",
-        status: "completed",
-        verdict: meeting.state?.verdict || null,
-      } satisfies TickStreamEvent),
-      {
-        headers: {
-          "content-type": "application/x-ndjson; charset=utf-8",
-          "cache-control": "no-cache, no-transform",
-        },
-      },
-    );
+  if (meeting.status === 'paused') {
+    return toSingleEventResponse({
+      type: 'status',
+      status: 'paused'
+    })
   }
 
-  if (meeting.status === "paused") {
-    return new Response(
-      JSON.stringify({
-        type: "status",
-        status: "paused",
-      } satisfies TickStreamEvent),
-      {
-        headers: {
-          "content-type": "application/x-ndjson; charset=utf-8",
-          "cache-control": "no-cache, no-transform",
-        },
-      },
-    );
-  }
+  const activeMembers = await getActiveCouncilMembersOrThrow(
+    'No active council members available.'
+  )
 
-  const allMembers = await db.query.councilMembers.findMany();
-  const activeMembers = allMembers.filter((member) => member.isActive);
-
-  if (activeMembers.length === 0) {
-    throw createError({
-      statusCode: 400,
-      statusMessage: "No active council members available.",
-    });
-  }
-
-  const encoder = new TextEncoder();
+  const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       const writeEvent = (payload: TickStreamEvent) => {
-        controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`));
-      };
+        controller.enqueue(encoder.encode(`${JSON.stringify(payload)}\n`))
+      }
 
       void (async () => {
         try {
-          const transcriptMessages = [...meeting.messages];
+          const transcriptMessages = [...meeting.messages]
 
           if (userMessage?.trim()) {
             await db.insert(schema.councilMessages).values({
               meetingId: meeting.id,
-              role: "user",
-              content: userMessage.trim(),
-            });
+              role: 'user',
+              content: userMessage.trim()
+            })
             transcriptMessages.push({
               id: crypto.randomUUID(),
               meetingId: meeting.id,
               memberId: null,
-              role: "user",
+              role: 'user',
               content: userMessage.trim(),
               createdAt: new Date(),
-              member: null,
-            } as (typeof meeting.messages)[number]);
+              member: null
+            } as (typeof meeting.messages)[number])
           }
 
           const currentState = meeting.state || {
             queue: [],
             rounds: 0,
             maxRounds: 2,
-            concluded: false,
-          };
-          const maxRounds = Math.max(1, currentState.maxRounds || 2);
-          let queue = (currentState.queue || []).filter((memberId) =>
-            activeMembers.some((member) => member.id === memberId),
-          );
-          let rounds = currentState.rounds || 0;
+            concluded: false
+          }
+          const maxRounds = Math.max(1, currentState.maxRounds || 2)
+          let queue = (currentState.queue || []).filter(memberId =>
+            activeMembers.some(member => member.id === memberId)
+          )
+          let rounds = currentState.rounds || 0
 
           if (queue.length === 0) {
             if (rounds < maxRounds) {
-              queue = shuffle(activeMembers.map((member) => member.id));
-              rounds += 1;
+              queue = shuffle(activeMembers.map(member => member.id))
+              rounds += 1
             } else {
               if (!currentState.concluded) {
                 const fullTranscript = transcriptMessages
                   .map((message) => {
-                    const author =
-                      message.role === "agent"
-                        ? message.member?.name || "Agent"
-                        : message.role === "user"
-                          ? "User"
-                          : "System";
-                    return `${author}: ${message.content}`;
+                    const author
+                      = message.role === 'agent'
+                        ? message.member?.name || 'Agent'
+                        : message.role === 'user'
+                          ? 'User'
+                          : 'System'
+                    return `${author}: ${message.content}`
                   })
-                  .join("\n");
+                  .join('\n')
 
-                const verdict = await generateVerdict(meeting.topic, fullTranscript);
-                const verdictText = `Council conclusion: ${verdict.summary}\nWinning idea: ${verdict.winningIdea}\nVote: ${verdict.voteResult}`;
+                const verdict = await generateVerdict(meeting.topic, fullTranscript)
+                const verdictText = `Council conclusion: ${verdict.summary}\nWinning idea: ${verdict.winningIdea}\nVote: ${verdict.voteResult}`
 
                 await db.insert(schema.councilMessages).values({
                   meetingId: meeting.id,
-                  role: "system",
-                  content: verdictText,
-                });
+                  role: 'system',
+                  content: verdictText
+                })
 
                 await db
                   .update(schema.councilMeetings)
                   .set({
-                    status: "completed",
+                    status: 'completed',
                     state: {
                       queue: [],
                       rounds,
                       maxRounds,
                       concluded: true,
-                      verdict,
-                    },
+                      verdict
+                    }
                   })
-                  .where(eq(schema.councilMeetings.id, meeting.id));
+                  .where(eq(schema.councilMeetings.id, meeting.id))
 
                 writeEvent({
-                  type: "status",
-                  status: "completed",
-                  verdict,
-                });
-                controller.close();
-                return;
+                  type: 'status',
+                  status: 'completed',
+                  verdict
+                })
+                controller.close()
+                return
               }
 
               writeEvent({
-                type: "status",
-                status: "completed",
-                verdict: currentState.verdict || null,
-              });
-              controller.close();
-              return;
+                type: 'status',
+                status: 'completed',
+                verdict: currentState.verdict || null
+              })
+              controller.close()
+              return
             }
           }
 
-          const speakerId = queue.shift();
-          const speaker = activeMembers.find((member) => member.id === speakerId);
+          const speakerId = queue.shift()
+          const speaker = activeMembers.find(member => member.id === speakerId)
           if (!speaker) {
             writeEvent({
-              type: "status",
-              status: "idle",
-            });
-            controller.close();
-            return;
+              type: 'status',
+              status: 'idle'
+            })
+            controller.close()
+            return
           }
 
           writeEvent({
-            type: "speaker",
+            type: 'speaker',
             member: {
               id: speaker.id,
               name: speaker.name,
               title: speaker.title,
-              accentColor: speaker.accentColor,
-            },
-          });
+              accentColor: speaker.accentColor
+            }
+          })
 
           const transcript = transcriptMessages
             .slice(-14)
             .map((message) => {
-              const author =
-                message.role === "agent"
-                  ? message.member?.name || "Agent"
-                  : message.role === "user"
-                    ? "User"
-                    : "System";
-              return `${author}: ${message.content}`;
+              const author
+                = message.role === 'agent'
+                  ? message.member?.name || 'Agent'
+                  : message.role === 'user'
+                    ? 'User'
+                    : 'System'
+              return `${author}: ${message.content}`
             })
-            .join("\n");
+            .join('\n')
 
           const result = streamText({
             model: defaultModel,
@@ -283,84 +189,78 @@ Rules:
 - Be concrete and collaborative.
 - If relevant, react to the latest speaker.
 - Do not use markdown headings or bullet points.`,
-            prompt: `Recent transcript:\n${transcript || "No messages yet."}\n\nMeeting topic: ${meeting.topic}\nContribute one concise turn that advances the conversation.`,
-          });
+            prompt: `Recent transcript:\n${transcript || 'No messages yet.'}\n\nMeeting topic: ${meeting.topic}\nContribute one concise turn that advances the conversation.`
+          })
 
-          let content = "";
+          let content = ''
           for await (const chunk of result.textStream) {
-            content += chunk;
+            content += chunk
             writeEvent({
-              type: "message_content",
-              content: clipText(content),
-            });
+              type: 'message_content',
+              content: clipText(content)
+            })
           }
 
-          const clippedContent = clipText(content);
+          const clippedContent = clipText(content)
 
           const [message] = await db
             .insert(schema.councilMessages)
             .values({
               meetingId: meeting.id,
               memberId: speaker.id,
-              role: "agent",
-              content: clippedContent,
+              role: 'agent',
+              content: clippedContent
             })
-            .returning();
+            .returning()
           if (!message) {
-            throw new Error("Failed to persist council message.");
+            throw new Error('Failed to persist council message.')
           }
 
           await db
             .update(schema.councilMeetings)
             .set({
-              status: "active",
+              status: 'active',
               lastSpokeAt: new Date(),
               state: {
                 queue,
                 rounds,
                 maxRounds,
                 concluded: false,
-                verdict: undefined,
-              },
+                verdict: undefined
+              }
             })
-            .where(eq(schema.councilMeetings.id, meeting.id));
+            .where(eq(schema.councilMeetings.id, meeting.id))
 
           writeEvent({
-            type: "message",
+            type: 'message',
             message: {
               id: message.id,
               meetingId: message.meetingId,
               memberId: message.memberId,
-              role: "agent",
+              role: 'agent',
               content: message.content,
               createdAt: message.createdAt,
               member: {
                 id: speaker.id,
                 name: speaker.name,
                 title: speaker.title,
-                accentColor: speaker.accentColor,
-              },
-            },
-          });
-          controller.close();
+                accentColor: speaker.accentColor
+              }
+            }
+          })
+          controller.close()
         } catch (error) {
-          const message =
-            error instanceof Error ? error.message : "Failed to progress meeting.";
+          const message
+            = error instanceof Error ? error.message : 'Failed to progress meeting.'
           writeEvent({
-            type: "error",
-            message,
-          });
-          controller.close();
+            type: 'error',
+            message
+          })
+          controller.close()
         }
-      })();
-    },
-  });
+      })()
+    }
+  })
 
-  return new Response(stream, {
-    headers: {
-      "content-type": "application/x-ndjson; charset=utf-8",
-      "cache-control": "no-cache, no-transform",
-      connection: "keep-alive",
-    },
-  });
-});
+  return toStreamingResponse(stream)
+})

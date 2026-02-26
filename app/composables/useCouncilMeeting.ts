@@ -17,9 +17,8 @@ export function useCouncilMeeting() {
   const stopping = ref(false)
   const deleting = ref(false)
   const rounds = ref(2)
-  const transcriptOpen = ref(false)
   const verdictOpen = ref(false)
-  let timer: ReturnType<typeof setInterval> | null = null
+  const shouldAutoTick = ref(false)
 
   const { data: members } = useFetch<CouncilMember[]>(
     '/api/council/members',
@@ -235,6 +234,13 @@ export function useCouncilMeeting() {
       })
     } finally {
       ticking.value = false
+      if (
+        shouldAutoTick.value
+        && selectedMeetingId.value
+        && hasActiveMeeting.value
+      ) {
+        void tickCouncil()
+      }
     }
   }
 
@@ -362,6 +368,17 @@ export function useCouncilMeeting() {
     }
   })
 
+  watch(hasActiveMeeting, (active) => {
+    if (
+      active
+      && shouldAutoTick.value
+      && selectedMeetingId.value
+      && !ticking.value
+    ) {
+      void tickCouncil()
+    }
+  })
+
   const isInitialVerdictWatch = ref(true)
   watch(verdict, (value, previous) => {
     if (isInitialVerdictWatch.value) {
@@ -374,15 +391,14 @@ export function useCouncilMeeting() {
   })
 
   onMounted(() => {
-    timer = setInterval(() => {
+    shouldAutoTick.value = true
+    if (hasActiveMeeting.value && selectedMeetingId.value) {
       void tickCouncil()
-    }, 4200)
+    }
   })
 
   onUnmounted(() => {
-    if (timer) {
-      clearInterval(timer)
-    }
+    shouldAutoTick.value = false
   })
 
   return {
@@ -394,7 +410,6 @@ export function useCouncilMeeting() {
     stopping,
     deleting,
     rounds,
-    transcriptOpen,
     verdictOpen,
     meetingOptions,
     roomMembers,

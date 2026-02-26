@@ -8,7 +8,6 @@ const {
   stopping,
   deleting,
   rounds,
-  transcriptOpen,
   verdictOpen,
   meetingOptions,
   roomMembers,
@@ -57,19 +56,23 @@ const {
 
     <UPageBody>
       <div class="space-y-4">
-        <CouncilMeetingScene
-          :meeting="meeting"
-          :room-members="roomMembers"
-          :active-speaker="activeSpeaker"
-          :round-label="roundLabel"
-          :has-active-meeting="Boolean(hasActiveMeeting)"
-          :topic="topic"
-          :rounds="rounds"
-          :creating="creating"
-          @update:topic="topic = $event"
-          @update:rounds="rounds = $event"
-          @start="startMeeting"
-        />
+        <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+          <CouncilMeetingScene
+            :meeting="meeting"
+            :room-members="roomMembers"
+            :active-speaker="activeSpeaker"
+            :round-label="roundLabel"
+            :has-active-meeting="Boolean(hasActiveMeeting)"
+            :topic="topic"
+            :rounds="rounds"
+            :creating="creating"
+            @update:topic="topic = $event"
+            @update:rounds="rounds = $event"
+            @start="startMeeting"
+          />
+
+          <CouncilTranscriptPanel :transcript="transcript" />
+        </div>
 
         <CouncilMeetingControls
           :has-active-meeting="Boolean(hasActiveMeeting)"
@@ -77,7 +80,6 @@ const {
           :stopping="stopping"
           :deleting="deleting"
           :has-selection="Boolean(selectedMeetingId)"
-          @show-transcript="transcriptOpen = true"
           @show-verdict="verdictOpen = true"
           @stop="stopMeeting"
           @delete="deleteMeeting"
@@ -91,7 +93,6 @@ const {
         />
       </div>
 
-      <CouncilTranscriptSlideover v-model:open="transcriptOpen" :transcript="transcript" />
       <CouncilVerdictModal v-model:open="verdictOpen" :verdict="verdict" />
     </UPageBody>
   </UContainer>

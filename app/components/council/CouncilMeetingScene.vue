@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import type { CouncilMember, CouncilMessage, CouncilMeeting } from '~/composables/council/types'
+import type { CouncilMember, CouncilMeeting } from '~/composables/council/types'
 
-defineProps<{
+const props = defineProps<{
   meeting: CouncilMeeting | null
   roomMembers: CouncilMember[]
-  activeSpeaker?: CouncilMessage
+  activeSpeaker?: { member: { id: string } | null }
   roundLabel: string
   hasActiveMeeting: boolean
   topic: string
@@ -23,37 +23,12 @@ function seatStyle(index: number, total: number, color: string) {
   const radius = 28
   const x = 50 + Math.cos(angle) * radius
   const y = 50 + Math.sin(angle) * radius
-  let bubbleShift = '0px'
-  if (x < 30) {
-    bubbleShift = '48px'
-  } else if (x > 70) {
-    bubbleShift = '-48px'
-  }
+
   return {
     'left': `${x}%`,
     'top': `${y}%`,
-    '--bubble-shift': bubbleShift,
     '--seat-color': color
   }
-}
-
-function isBottomSeat(index: number, total: number) {
-  const angle = ((Math.PI * 2) / Math.max(total, 1)) * index - Math.PI / 2
-  const y = 50 + Math.sin(angle) * 28
-  return y > 58
-}
-
-function speechContentFor(message: CouncilMessage | undefined) {
-  if (!message?.content) {
-    return ''
-  }
-  const speaker = message.member?.name?.trim()
-  if (!speaker) {
-    return message.content
-  }
-  const escaped = speaker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const pattern = new RegExp(`^${escaped}:\\s*`, 'i')
-  return message.content.replace(pattern, '')
 }
 </script>
 
@@ -64,13 +39,13 @@ function speechContentFor(message: CouncilMessage | undefined) {
 
       <div class="round-pill">
         <UBadge color="neutral" variant="soft">
-          {{ roundLabel }}
+          {{ props.roundLabel }}
         </UBadge>
-        <UBadge :color="hasActiveMeeting ? 'success' : 'neutral'" variant="soft">
-          {{ meeting?.status || "idle" }}
+        <UBadge :color="props.hasActiveMeeting ? 'success' : 'neutral'" variant="soft">
+          {{ props.meeting?.status || 'idle' }}
         </UBadge>
         <UBadge color="neutral" variant="outline">
-          {{ roomMembers.length }} active members
+          {{ props.roomMembers.length }} active members
         </UBadge>
       </div>
 
@@ -80,23 +55,23 @@ function speechContentFor(message: CouncilMessage | undefined) {
             Meeting Topic
           </p>
           <p class="text-sm font-semibold text-white sm:text-base">
-            {{ meeting?.topic || "No meeting selected" }}
+            {{ props.meeting?.topic || 'No meeting selected' }}
           </p>
         </div>
       </div>
 
       <div
-        v-for="(member, index) in roomMembers"
+        v-for="(member, index) in props.roomMembers"
         :key="member.id"
         class="seat"
-        :style="seatStyle(index, roomMembers.length, member.accentColor)"
-        :class="{
-          'speaking': activeSpeaker?.member?.id === member.id,
-          'bubble-above': isBottomSeat(index, roomMembers.length)
-        }"
+        :style="seatStyle(index, props.roomMembers.length, member.accentColor)"
+        :class="{ speaking: props.activeSpeaker?.member?.id === member.id }"
       >
-        <div class="avatar-ring">
-          <span>{{ member.name.slice(0, 1).toUpperCase() }}</span>
+        <div class="avatar-shell">
+          <div class="seat-ping" />
+          <div class="avatar-ring">
+            <span>{{ member.name.slice(0, 1).toUpperCase() }}</span>
+          </div>
         </div>
         <p class="seat-name">
           {{ member.name }}
@@ -104,23 +79,20 @@ function speechContentFor(message: CouncilMessage | undefined) {
         <p class="seat-title">
           {{ member.title }}
         </p>
-        <UCard v-if="activeSpeaker?.member?.id === member.id" variant="subtle" class="speech-bubble">
-          {{ speechContentFor(activeSpeaker) }}
-        </UCard>
       </div>
 
-      <div v-if="!hasActiveMeeting" class="start-overlay">
+      <div v-if="!props.hasActiveMeeting" class="start-overlay">
         <UCard class="start-card" variant="soft">
           <template #header>
             <h2 class="font-semibold">
               Start Meeting
             </h2>
           </template>
-          <UForm :state="{ topic, rounds }" class="space-y-3" @submit="emit('start')">
+          <UForm :state="{ topic: props.topic, rounds: props.rounds }" class="space-y-3" @submit="emit('start')">
             <UFormField label="Topic" class="w-full">
               <UTextarea
                 class="w-full"
-                :model-value="topic"
+                :model-value="props.topic"
                 :rows="3"
                 placeholder="What should the council discuss?"
                 @update:model-value="emit('update:topic', $event)"
@@ -129,7 +101,7 @@ function speechContentFor(message: CouncilMessage | undefined) {
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <UFormField label="Rounds">
                 <UInputNumber
-                  :model-value="rounds"
+                  :model-value="props.rounds"
                   :min="1"
                   :max="5"
                   class="w-full"
@@ -139,7 +111,7 @@ function speechContentFor(message: CouncilMessage | undefined) {
               <div class="flex items-end">
                 <UButton
                   type="submit"
-                  :loading="creating"
+                  :loading="props.creating"
                   icon="i-lucide-play"
                   block
                 >
@@ -221,15 +193,30 @@ function speechContentFor(message: CouncilMessage | undefined) {
   transform: translate(-50%, -50%);
   text-align: center;
   width: 200px;
-  transition: transform 200ms ease;
+  transition: transform 220ms ease;
   z-index: 4;
 }
 
-.avatar-ring {
+.avatar-shell {
   position: relative;
   width: 70px;
   height: 70px;
   margin: 0 auto;
+}
+
+.seat-ping {
+  position: absolute;
+  inset: -7px;
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--seat-color) 75%, white);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.avatar-ring {
+  position: relative;
+  width: 100%;
+  height: 100%;
   border-radius: 9999px;
   display: grid;
   place-items: center;
@@ -238,17 +225,6 @@ function speechContentFor(message: CouncilMessage | undefined) {
   background: color-mix(in srgb, var(--seat-color) 70%, black);
   border: 2px solid color-mix(in srgb, var(--seat-color) 68%, white);
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.38);
-}
-
-.avatar-ring::after {
-  content: "";
-  position: absolute;
-  inset: -6px;
-  border-radius: 9999px;
-  border: 2px solid color-mix(in srgb, var(--seat-color) 75%, white);
-  opacity: 0;
-  transform: scale(1);
-  pointer-events: none;
 }
 
 .seat-name {
@@ -272,45 +248,23 @@ function speechContentFor(message: CouncilMessage | undefined) {
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
 }
 
-.speaking .avatar-ring::after {
-  animation: speaker-pulse 1.3s ease-out infinite;
+.speaking .seat-ping {
+  animation: speaker-ping 1.3s ease-out infinite;
 }
 
-@keyframes speaker-pulse {
+@keyframes speaker-ping {
   0% {
-    opacity: 0.8;
+    opacity: 0.9;
     transform: scale(1);
   }
   70% {
     opacity: 0;
-    transform: scale(1.45);
+    transform: scale(1.4);
   }
   100% {
     opacity: 0;
-    transform: scale(1.45);
+    transform: scale(1.4);
   }
-}
-
-.speech-bubble {
-  margin: 0;
-  position: absolute;
-  left: 50%;
-  top: calc(100% + 0.5rem);
-  transform: translateX(calc(-50% + var(--bubble-shift, 0px)));
-  z-index: 10;
-  width: 230px;
-  max-width: min(230px, calc(100vw - 4rem));
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(17, 24, 39, 0.14);
-  color: #111827;
-  font-size: 0.8rem;
-  line-height: 1.35;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.32);
-}
-
-.bubble-above .speech-bubble {
-  top: auto;
-  bottom: calc(100% + 0.5rem);
 }
 
 .start-overlay {
@@ -361,13 +315,9 @@ function speechContentFor(message: CouncilMessage | undefined) {
     width: 132px;
   }
 
-  .avatar-ring {
+  .avatar-shell {
     width: 56px;
     height: 56px;
-  }
-
-  .speech-bubble {
-    width: 165px;
   }
 }
 </style>

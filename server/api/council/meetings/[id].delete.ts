@@ -1,26 +1,18 @@
-import { eq } from "drizzle-orm";
-import { db, schema } from "~~/server/db";
+import { eq } from 'drizzle-orm'
+import { db, schema } from '~~/server/db'
+import { getMeetingOrThrow } from '~~/server/utils/council/meetings'
 
 export default defineEventHandler(async (event) => {
-  const { id } = getRouterParams(event);
+  const { id } = getRouterParams(event)
 
-  const meeting = await db.query.councilMeetings.findFirst({
-    where: () => eq(schema.councilMeetings.id, id as string),
-  });
-
-  if (!meeting) {
-    throw createError({
-      statusCode: 404,
-      statusMessage: "Council meeting not found.",
-    });
-  }
+  const meeting = await getMeetingOrThrow(id as string)
 
   await db
     .delete(schema.councilMeetings)
-    .where(eq(schema.councilMeetings.id, meeting.id));
+    .where(eq(schema.councilMeetings.id, meeting.id))
 
   return {
     deleted: true,
-    id: meeting.id,
-  };
-});
+    id: meeting.id
+  }
+})

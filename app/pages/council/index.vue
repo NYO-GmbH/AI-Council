@@ -1,223 +1,247 @@
 <script setup lang="ts">
 interface CouncilMember {
-  id: string
-  name: string
-  title: string
-  accentColor: string
-  isActive: boolean
+  id: string;
+  name: string;
+  title: string;
+  accentColor: string;
+  isActive: boolean;
 }
 
 interface CouncilMessage {
-  id: string
-  role: 'user' | 'agent' | 'system'
-  content: string
-  createdAt: string
-  member: CouncilMember | null
+  id: string;
+  role: "user" | "agent" | "system";
+  content: string;
+  createdAt: string;
+  member: CouncilMember | null;
 }
 
 interface MeetingState {
-  queue: string[]
-  rounds: number
-  maxRounds: number
-  concluded?: boolean
+  queue: string[];
+  rounds: number;
+  maxRounds: number;
+  concluded?: boolean;
   verdict?: {
-    summary: string
-    winningIdea: string
-    voteResult: string
-  }
+    summary: string;
+    winningIdea: string;
+    voteResult: string;
+  };
 }
 
 interface CouncilMeeting {
-  id: string
-  topic: string
-  status: 'active' | 'paused' | 'completed'
-  createdAt: string
-  state: MeetingState
-  messages?: CouncilMessage[]
+  id: string;
+  topic: string;
+  status: "active" | "paused" | "completed";
+  createdAt: string;
+  state: MeetingState;
+  messages?: CouncilMessage[];
 }
 
-const toast = useToast()
-const selectedMeetingId = ref<string>()
-const meeting = ref<CouncilMeeting | null>(null)
-const topic = ref('Plan our next product sprint with clear owner decisions.')
-const userNudge = ref('')
-const creating = ref(false)
-const ticking = ref(false)
-const stopping = ref(false)
-const rounds = ref(2)
-let timer: ReturnType<typeof setInterval> | null = null
+const toast = useToast();
+const selectedMeetingId = ref<string>();
+const meeting = ref<CouncilMeeting | null>(null);
+const topic = ref("Plan our next product sprint with clear owner decisions.");
+const userNudge = ref("");
+const creating = ref(false);
+const ticking = ref(false);
+const stopping = ref(false);
+const rounds = ref(2);
+let timer: ReturnType<typeof setInterval> | null = null;
 
-const { data: members } = await useFetch<CouncilMember[]>('/api/council/members', {
-  default: () => []
-})
+const { data: members } = await useFetch<CouncilMember[]>(
+  "/api/council/members",
+  {
+    default: () => [],
+  },
+);
 
-const { data: meetings, refresh: refreshMeetings } = await useFetch<CouncilMeeting[]>('/api/council/meetings', {
-  default: () => []
-})
+const { data: meetings, refresh: refreshMeetings } = await useFetch<
+  CouncilMeeting[]
+>("/api/council/meetings", {
+  default: () => [],
+});
 
 const meetingOptions = computed(() =>
-  (meetings.value || []).map(item => ({
+  (meetings.value || []).map((item) => ({
     label: item.topic,
-    value: item.id
-  }))
-)
+    value: item.id,
+  })),
+);
 
-const roomMembers = computed(() => members.value?.filter(member => member.isActive) || [])
-const transcript = computed(() => meeting.value?.messages || [])
-const activeSpeaker = computed(() => [...transcript.value].reverse().find(message => message.role === 'agent'))
-const hasActiveMeeting = computed(() => meeting.value?.status === 'active')
+const roomMembers = computed(
+  () => members.value?.filter((member) => member.isActive) || [],
+);
+const transcript = computed(() => meeting.value?.messages || []);
+const activeSpeaker = computed(() =>
+  [...transcript.value].reverse().find((message) => message.role === "agent"),
+);
+const hasActiveMeeting = computed(() => meeting.value?.status === "active");
 const roundLabel = computed(() => {
   if (!meeting.value?.state) {
-    return 'Round 0/0'
+    return "Round 0/0";
   }
-  return `Round ${meeting.value.state.rounds}/${meeting.value.state.maxRounds}`
-})
-const verdict = computed(() => meeting.value?.state?.verdict)
+  return `Round ${meeting.value.state.rounds}/${meeting.value.state.maxRounds}`;
+});
+const verdict = computed(() => meeting.value?.state?.verdict);
 
 function seatStyle(index: number, total: number, color: string) {
-  const angle = ((Math.PI * 2) / Math.max(total, 1)) * index - Math.PI / 2
-  const radius = 32
-  const x = 50 + (Math.cos(angle) * radius)
-  const y = 50 + (Math.sin(angle) * radius)
+  const angle = ((Math.PI * 2) / Math.max(total, 1)) * index - Math.PI / 2;
+  const radius = 32;
+  const x = 50 + Math.cos(angle) * radius;
+  const y = 50 + Math.sin(angle) * radius;
   return {
-    'left': `${x}%`,
-    'top': `${y}%`,
-    '--seat-color': color
-  }
+    left: `${x}%`,
+    top: `${y}%`,
+    "--seat-color": color,
+  };
 }
 
 function roleLabel(message: CouncilMessage) {
-  if (message.role === 'agent') {
-    return message.member?.name || 'Agent'
+  if (message.role === "agent") {
+    return message.member?.name || "Agent";
   }
-  if (message.role === 'user') {
-    return 'You'
+  if (message.role === "user") {
+    return "You";
   }
-  return 'System'
+  return "System";
 }
 
-function roleColor(role: CouncilMessage['role']) {
-  if (role === 'agent') {
-    return 'primary'
+function roleColor(role: CouncilMessage["role"]) {
+  if (role === "agent") {
+    return "primary";
   }
-  if (role === 'user') {
-    return 'info'
+  if (role === "user") {
+    return "info";
   }
-  return 'warning'
+  return "warning";
 }
 
 async function loadMeeting(id: string) {
-  meeting.value = await $fetch(`/api/council/meetings/${id}`)
+  meeting.value = await $fetch(`/api/council/meetings/${id}`);
 }
 
 async function tickCouncil(userMessage?: string) {
   if (!selectedMeetingId.value || ticking.value || !hasActiveMeeting.value) {
-    return
+    return;
   }
-  ticking.value = true
+  ticking.value = true;
   try {
-    const payload = userMessage?.trim() ? { userMessage: userMessage.trim() } : {}
+    const payload = userMessage?.trim()
+      ? { userMessage: userMessage.trim() }
+      : {};
     await $fetch(`/api/council/meetings/${selectedMeetingId.value}/tick`, {
-      method: 'POST',
-      body: payload
-    })
-    await loadMeeting(selectedMeetingId.value)
-    await refreshMeetings()
+      method: "POST",
+      body: payload,
+    });
+    await loadMeeting(selectedMeetingId.value);
+    await refreshMeetings();
   } catch (error: unknown) {
-    const err = error as { data?: { statusMessage?: string }, message?: string }
+    const err = error as {
+      data?: { statusMessage?: string };
+      message?: string;
+    };
     toast.add({
-      color: 'error',
-      icon: 'i-lucide-alert-circle',
-      description: err?.data?.statusMessage || err?.message || 'Failed to progress meeting.'
-    })
+      color: "error",
+      icon: "i-lucide-alert-circle",
+      description:
+        err?.data?.statusMessage ||
+        err?.message ||
+        "Failed to progress meeting.",
+    });
   } finally {
-    ticking.value = false
+    ticking.value = false;
   }
 }
 
 async function startMeeting() {
   if (!topic.value.trim()) {
-    return
+    return;
   }
-  creating.value = true
+  creating.value = true;
   try {
-    const created = await $fetch<CouncilMeeting>('/api/council/meetings', {
-      method: 'POST',
+    const created = await $fetch<CouncilMeeting>("/api/council/meetings", {
+      method: "POST",
       body: {
         topic: topic.value,
-        rounds: rounds.value
-      }
-    })
-    await refreshMeetings()
-    selectedMeetingId.value = created.id
-    await loadMeeting(created.id)
-    await tickCouncil()
+        rounds: rounds.value,
+      },
+    });
+    await refreshMeetings();
+    selectedMeetingId.value = created.id;
+    await loadMeeting(created.id);
+    await tickCouncil();
   } finally {
-    creating.value = false
+    creating.value = false;
   }
 }
 
 async function sendNudge() {
   if (!userNudge.value.trim()) {
-    return
+    return;
   }
-  const nudge = userNudge.value
-  userNudge.value = ''
-  await tickCouncil(nudge)
+  const nudge = userNudge.value;
+  userNudge.value = "";
+  await tickCouncil(nudge);
 }
 
 async function stopMeeting() {
   if (!selectedMeetingId.value) {
-    return
+    return;
   }
-  stopping.value = true
+  stopping.value = true;
   try {
-    await $fetch(`/api/council/meetings/${selectedMeetingId.value}/stop`, { method: 'POST' })
-    await loadMeeting(selectedMeetingId.value)
-    await refreshMeetings()
+    await $fetch(`/api/council/meetings/${selectedMeetingId.value}/stop`, {
+      method: "POST",
+    });
+    await loadMeeting(selectedMeetingId.value);
+    await refreshMeetings();
   } finally {
-    stopping.value = false
+    stopping.value = false;
   }
 }
 
-watch(meetings, async (value) => {
-  if (!value?.length) {
-    selectedMeetingId.value = undefined
-    meeting.value = null
-    return
-  }
-  if (!selectedMeetingId.value) {
-    const preferred = value.find(item => item.status === 'active') || value[0]
-    selectedMeetingId.value = preferred?.id
-    if (preferred?.id) {
-      await loadMeeting(preferred.id)
+watch(
+  meetings,
+  async (value) => {
+    if (!value?.length) {
+      selectedMeetingId.value = undefined;
+      meeting.value = null;
+      return;
     }
-  }
-}, { immediate: true })
+    if (!selectedMeetingId.value) {
+      const preferred =
+        value.find((item) => item.status === "active") || value[0];
+      selectedMeetingId.value = preferred?.id;
+      if (preferred?.id) {
+        await loadMeeting(preferred.id);
+      }
+    }
+  },
+  { immediate: true },
+);
 
 watch(selectedMeetingId, async (id) => {
   if (id) {
-    await loadMeeting(id)
+    await loadMeeting(id);
   } else {
-    meeting.value = null
+    meeting.value = null;
   }
-})
+});
 
 onMounted(() => {
   timer = setInterval(() => {
-    tickCouncil()
-  }, 4200)
-})
+    tickCouncil();
+  }, 4200);
+});
 
 onUnmounted(() => {
   if (timer) {
-    clearInterval(timer)
+    clearInterval(timer);
   }
-})
+});
 </script>
 
 <template>
-  <UPage>
+  <UContainer>
     <UPageHeader
       headline="Council Chamber"
       title="Agent Roundtable"
@@ -256,8 +280,11 @@ onUnmounted(() => {
               <UBadge color="neutral" variant="soft">
                 {{ roundLabel }}
               </UBadge>
-              <UBadge :color="hasActiveMeeting ? 'success' : 'neutral'" variant="soft">
-                {{ meeting?.status || 'idle' }}
+              <UBadge
+                :color="hasActiveMeeting ? 'success' : 'neutral'"
+                variant="soft"
+              >
+                {{ meeting?.status || "idle" }}
               </UBadge>
               <UBadge color="neutral" variant="outline">
                 {{ roomMembers.length }} active members
@@ -270,7 +297,7 @@ onUnmounted(() => {
                   Meeting Topic
                 </p>
                 <p class="text-sm font-semibold text-white sm:text-base">
-                  {{ meeting?.topic || 'No meeting selected' }}
+                  {{ meeting?.topic || "No meeting selected" }}
                 </p>
               </div>
             </div>
@@ -301,18 +328,21 @@ onUnmounted(() => {
             </div>
 
             <div v-if="!hasActiveMeeting" class="start-overlay">
-              <UCard
-                class="start-card"
-                variant="soft"
-              >
+              <UCard class="start-card" variant="soft">
                 <template #header>
-                  <h2 class="font-semibold">
-                    Start Meeting
-                  </h2>
+                  <h2 class="font-semibold">Start Meeting</h2>
                 </template>
-                <UForm :state="{ topic, rounds }" class="space-y-3" @submit="startMeeting">
+                <UForm
+                  :state="{ topic, rounds }"
+                  class="space-y-3"
+                  @submit="startMeeting"
+                >
                   <UFormField label="Topic">
-                    <UTextarea v-model="topic" :rows="3" placeholder="What should the council discuss?" />
+                    <UTextarea
+                      v-model="topic"
+                      :rows="3"
+                      placeholder="What should the council discuss?"
+                    />
                   </UFormField>
                   <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <UFormField label="Rounds">
@@ -344,9 +374,7 @@ onUnmounted(() => {
           <UCard variant="soft">
             <template #header>
               <div class="flex items-center justify-between gap-2">
-                <h2 class="font-semibold">
-                  Live Transcript
-                </h2>
+                <h2 class="font-semibold">Live Transcript</h2>
                 <UButton
                   icon="i-lucide-square"
                   color="error"
@@ -373,16 +401,15 @@ onUnmounted(() => {
                   v-for="message in transcript"
                   :key="message.id"
                   variant="subtle"
-                  :class="[
-                    'line',
-                    `role-${message.role}`
-                  ]"
+                  :class="['line', `role-${message.role}`]"
                 >
                   <div class="mb-1.5 flex items-center justify-between gap-2">
                     <UBadge :color="roleColor(message.role)" variant="soft">
                       {{ roleLabel(message) }}
                     </UBadge>
-                    <span class="text-xs text-muted">{{ new Date(message.createdAt).toLocaleTimeString() }}</span>
+                    <span class="text-xs text-muted">{{
+                      new Date(message.createdAt).toLocaleTimeString()
+                    }}</span>
                   </div>
                   <p class="text-sm">
                     {{ message.content }}
@@ -394,9 +421,7 @@ onUnmounted(() => {
 
           <UCard v-if="hasActiveMeeting" variant="soft">
             <template #header>
-              <h2 class="font-semibold">
-                Interrupt Council
-              </h2>
+              <h2 class="font-semibold">Interrupt Council</h2>
             </template>
             <UForm :state="{ userNudge }" class="space-y-3" @submit="sendNudge">
               <UFormField label="Interruption">
@@ -406,12 +431,7 @@ onUnmounted(() => {
                   placeholder="Interrupt with new constraints or a direction change..."
                 />
               </UFormField>
-              <UButton
-                type="submit"
-                icon="i-lucide-send"
-                block
-                variant="soft"
-              >
+              <UButton type="submit" icon="i-lucide-send" block variant="soft">
                 Send interruption
               </UButton>
             </UForm>
@@ -419,9 +439,7 @@ onUnmounted(() => {
 
           <UCard v-if="verdict" variant="soft">
             <template #header>
-              <h2 class="font-semibold">
-                Final Verdict
-              </h2>
+              <h2 class="font-semibold">Final Verdict</h2>
             </template>
             <div class="space-y-2 text-sm">
               <UAlert
@@ -450,7 +468,7 @@ onUnmounted(() => {
         </div>
       </UPageGrid>
     </UPageBody>
-  </UPage>
+  </UContainer>
 </template>
 
 <style scoped>
@@ -460,7 +478,11 @@ onUnmounted(() => {
   overflow: hidden;
   border-radius: 1rem;
   background:
-    radial-gradient(circle at 50% 40%, rgba(120, 53, 15, 0.62), rgba(23, 23, 23, 0.95)),
+    radial-gradient(
+      circle at 50% 40%,
+      rgba(120, 53, 15, 0.62),
+      rgba(23, 23, 23, 0.95)
+    ),
     linear-gradient(135deg, rgba(30, 64, 175, 0.28), rgba(120, 53, 15, 0.28));
 }
 
@@ -478,7 +500,11 @@ onUnmounted(() => {
   position: absolute;
   inset: 10% 24%;
   border-radius: 9999px;
-  background: radial-gradient(circle, rgba(251, 191, 36, 0.16), transparent 72%);
+  background: radial-gradient(
+    circle,
+    rgba(251, 191, 36, 0.16),
+    transparent 72%
+  );
 }
 
 .table-core {
@@ -489,12 +515,17 @@ onUnmounted(() => {
   aspect-ratio: 1 / 1;
   transform: translate(-50%, -50%);
   border-radius: 9999px;
-  background:
-    radial-gradient(circle at 30% 20%, rgba(180, 83, 9, 0.95), rgba(67, 20, 7, 0.95));
+  background: radial-gradient(
+    circle at 30% 20%,
+    rgba(180, 83, 9, 0.95),
+    rgba(67, 20, 7, 0.95)
+  );
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 8px 30px rgba(0, 0, 0, 0.45), 0 28px 40px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    inset 0 8px 30px rgba(0, 0, 0, 0.45),
+    0 28px 40px rgba(0, 0, 0, 0.45);
 }
 
 .table-center {
@@ -542,7 +573,9 @@ onUnmounted(() => {
 }
 
 .speaking .avatar-ring {
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--seat-color) 30%, transparent), 0 14px 28px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 0 0 6px color-mix(in srgb, var(--seat-color) 30%, transparent),
+    0 14px 28px rgba(0, 0, 0, 0.45);
 }
 
 .speech-bubble {
@@ -560,7 +593,11 @@ onUnmounted(() => {
   display: grid;
   place-items: center;
   z-index: 8;
-  background: radial-gradient(circle at center, rgba(17, 24, 39, 0.22), rgba(17, 24, 39, 0.52));
+  background: radial-gradient(
+    circle at center,
+    rgba(17, 24, 39, 0.22),
+    rgba(17, 24, 39, 0.52)
+  );
 }
 
 .start-card {

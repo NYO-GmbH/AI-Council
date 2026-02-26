@@ -1,7 +1,7 @@
 <script setup lang="ts">
-const input = ref('')
-const loading = ref(false)
-const chatId = crypto.randomUUID()
+const input = ref("");
+const loading = ref(false);
+const chatId = crypto.randomUUID();
 
 const {
   dropzoneRef,
@@ -11,77 +11,78 @@ const {
   isUploading,
   uploadedFiles,
   removeFile,
-  clearFiles
-} = useFileUploadWithStatus(chatId)
+  clearFiles,
+} = useFileUploadWithStatus(chatId);
 
 async function createChat(prompt: string) {
-  input.value = prompt
-  loading.value = true
+  input.value = prompt;
+  loading.value = true;
 
-  const parts: Array<{ type: string, text?: string, mediaType?: string, url?: string }> = [{ type: 'text', text: prompt }]
+  const parts: Array<{
+    type: string;
+    text?: string;
+    mediaType?: string;
+    url?: string;
+  }> = [{ type: "text", text: prompt }];
 
   if (uploadedFiles.value.length > 0) {
-    parts.push(...uploadedFiles.value)
+    parts.push(...uploadedFiles.value);
   }
 
-  const chat = await $fetch('/api/chats', {
-    method: 'POST',
+  const chat = await $fetch("/api/chats", {
+    method: "POST",
     body: {
       id: chatId,
       message: {
-        role: 'user',
-        parts
-      }
-    }
-  })
+        role: "user",
+        parts,
+      },
+    },
+  });
 
-  refreshNuxtData('chats')
-  navigateTo(`/chat/${chat?.id}`)
+  refreshNuxtData("chats");
+  navigateTo(`/chat/${chat?.id}`);
 }
 
 async function onSubmit() {
-  await createChat(input.value)
-  clearFiles()
+  await createChat(input.value);
+  clearFiles();
 }
 
 const quickChats = [
   {
-    label: 'Why use Nuxt UI?',
-    icon: 'i-logos-nuxt-icon'
+    label: "Why use Nuxt UI?",
+    icon: "i-logos-nuxt-icon",
   },
   {
-    label: 'Help me create a Vue composable',
-    icon: 'i-logos-vue'
+    label: "Help me create a Vue composable",
+    icon: "i-logos-vue",
   },
   {
-    label: 'Tell me more about UnJS',
-    icon: 'i-logos-unjs'
+    label: "Tell me more about UnJS",
+    icon: "i-logos-unjs",
   },
   {
-    label: 'Why should I consider VueUse?',
-    icon: 'i-logos-vueuse'
+    label: "Why should I consider VueUse?",
+    icon: "i-logos-vueuse",
   },
   {
-    label: 'Tailwind CSS best practices',
-    icon: 'i-logos-tailwindcss-icon'
+    label: "Tailwind CSS best practices",
+    icon: "i-logos-tailwindcss-icon",
   },
   {
-    label: 'What is the weather in Bordeaux?',
-    icon: 'i-lucide-sun'
+    label: "What is the weather in Bordeaux?",
+    icon: "i-lucide-sun",
   },
   {
-    label: 'Show me a chart of sales data',
-    icon: 'i-lucide-line-chart'
-  }
-]
+    label: "Show me a chart of sales data",
+    icon: "i-lucide-line-chart",
+  },
+];
 </script>
 
 <template>
-  <UDashboardPanel
-    id="home"
-    class="min-h-0"
-    :ui="{ body: 'p-0 sm:p-0' }"
-  >
+  <UDashboardPanel id="home" class="min-h-0" :ui="{ body: 'p-0 sm:p-0' }">
     <template #header>
       <DashboardNavbar />
     </template>
@@ -90,7 +91,9 @@ const quickChats = [
       <div ref="dropzoneRef" class="flex flex-1">
         <DragDropOverlay :show="isDragging" />
 
-        <UContainer class="flex-1 flex flex-col justify-center gap-4 sm:gap-6 py-8">
+        <UContainer
+          class="flex-1 flex flex-col justify-center gap-4 sm:gap-6 py-8"
+        >
           <h1 class="text-3xl sm:text-4xl text-highlighted font-bold">
             How can I help you today?
           </h1>
@@ -123,11 +126,13 @@ const quickChats = [
             <template #footer>
               <div class="flex items-center gap-1">
                 <FileUploadButton :open="open" />
-
-                <ModelSelect />
               </div>
 
-              <UChatPromptSubmit color="neutral" size="sm" :disabled="isUploading" />
+              <UChatPromptSubmit
+                color="neutral"
+                size="sm"
+                :disabled="isUploading"
+              />
             </template>
           </UChatPrompt>
 

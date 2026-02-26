@@ -1,70 +1,95 @@
-import { convertToModelMessages, createUIMessageStream, createUIMessageStreamResponse, generateText, smoothStream, stepCountIs, streamText } from 'ai'
-import { z } from 'zod'
-import { db, schema } from 'hub:db'
-import { and, eq } from 'drizzle-orm'
-import type { UIMessage } from 'ai'
+import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  generateText,
+  smoothStream,
+  stepCountIs,
+  streamText,
+} from "ai";
+import { z } from "zod";
+import { db, schema } from "hub:db";
+import { and, eq } from "drizzle-orm";
+import type { UIMessage } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+
+const lmstudio = createOpenAICompatible({
+  name: "lmstudio",
+  baseURL: "http://127.0.0.1:1234/v1",
+});
+
+const model = lmstudio("qwen/qwen3-4b-2507");
 
 defineRouteMeta({
   openAPI: {
-    description: 'Chat with AI.',
-    tags: ['ai']
-  }
-})
+    description: "Chat with AI.",
+    tags: ["ai"],
+  },
+});
 
 export default defineEventHandler(async (event) => {
-  const session = await getUserSession(event)
+  const session = await getUserSession(event);
 
-  const { id } = await getValidatedRouterParams(event, z.object({
-    id: z.string()
-  }).parse)
+  const { id } = await getValidatedRouterParams(
+    event,
+    z.object({
+      id: z.string(),
+    }).parse,
+  );
 
-  const { model, messages } = await readValidatedBody(event, z.object({
-    model: z.string(),
-    messages: z.array(z.custom<UIMessage>())
-  }).parse)
+  const { messages } = await readValidatedBody(
+    event,
+    z.object({
+      messages: z.array(z.custom<UIMessage>()),
+    }).parse,
+  );
 
   const chat = await db.query.chats.findFirst({
-    where: () => and(
-      eq(schema.chats.id, id as string),
-      eq(schema.chats.userId, session.user?.id || session.id)
-    ),
+    where: () =>
+      and(
+        eq(schema.chats.id, id as string),
+        eq(schema.chats.userId, session.user?.id || session.id),
+      ),
     with: {
-      messages: true
-    }
-  })
+      messages: true,
+    },
+  });
   if (!chat) {
-    throw createError({ statusCode: 404, statusMessage: 'Chat not found' })
+    throw createError({ statusCode: 404, statusMessage: "Chat not found" });
   }
 
   if (!chat.title) {
     const { text: title } = await generateText({
-      model: 'openai/gpt-4o-mini',
+      model,
       system: `You are a title generator for a chat:
           - Generate a short title based on the first user's message
           - The title should be less than 30 characters long
           - The title should be a summary of the user's message
           - Do not use quotes (' or ") or colons (:) or any other punctuation
           - Do not use markdown, just plain text`,
-      prompt: JSON.stringify(messages[0])
-    })
+      prompt: JSON.stringify(messages[0]),
+    });
 
-    await db.update(schema.chats).set({ title }).where(eq(schema.chats.id, id as string))
+    await db
+      .update(schema.chats)
+      .set({ title })
+      .where(eq(schema.chats.id, id as string));
   }
 
-  const lastMessage = messages[messages.length - 1]
-  if (lastMessage?.role === 'user' && messages.length > 1) {
+  const lastMessage = messages[messages.length - 1];
+  if (lastMessage?.role === "user" && messages.length > 1) {
     await db.insert(schema.messages).values({
       chatId: id as string,
-      role: 'user',
-      parts: lastMessage.parts
-    })
+      role: "user",
+      parts: lastMessage.parts,
+    });
   }
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
       const result = streamText({
         model,
-        system: `You are a knowledgeable and helpful AI assistant. ${session.user?.username ? `The user's name is ${session.user.username}.` : ''} Your goal is to provide clear, accurate, and well-structured responses.
+        system: `You are a knowledgeable and helpful AI assistant. ${session.user?.username ? `The user's name is ${session.user.username}.` : ""} Your goal is to provide clear, accurate, and well-structured responses.
 
 **FORMATTING RULES (CRITICAL):**
 - ABSOLUTELY NO MARKDOWN HEADINGS: Never use #, ##, ###, ####, #####, or ######
@@ -83,46 +108,50 @@ export default defineEventHandler(async (event) => {
         messages: await convertToModelMessages(messages),
         providerOptions: {
           openai: {
-            reasoningEffort: 'low',
-            reasoningSummary: 'detailed'
+            reasoningEffort: "low",
+            reasoningSummary: "detailed",
           },
           google: {
             thinkingConfig: {
               includeThoughts: true,
-              thinkingBudget: 2048
-            }
-          }
+              thinkingBudget: 2048,
+            },
+          },
         },
         stopWhen: stepCountIs(5),
-        experimental_transform: smoothStream({ chunking: 'word' }),
+        experimental_transform: smoothStream({ chunking: "word" }),
         tools: {
           weather: weatherTool,
-          chart: chartTool
-        }
-      })
+          chart: chartTool,
+        },
+      });
 
       if (!chat.title) {
         writer.write({
-          type: 'data-chat-title',
-          data: { message: 'Generating title...' },
-          transient: true
-        })
+          type: "data-chat-title",
+          data: { message: "Generating title..." },
+          transient: true,
+        });
       }
 
-      writer.merge(result.toUIMessageStream({
-        sendReasoning: true
-      }))
+      writer.merge(
+        result.toUIMessageStream({
+          sendReasoning: true,
+        }),
+      );
     },
     onFinish: async ({ messages }) => {
-      await db.insert(schema.messages).values(messages.map(message => ({
-        chatId: chat.id,
-        role: message.role as 'user' | 'assistant',
-        parts: message.parts
-      })))
-    }
-  })
+      await db.insert(schema.messages).values(
+        messages.map((message) => ({
+          chatId: chat.id,
+          role: message.role as "user" | "assistant",
+          parts: message.parts,
+        })),
+      );
+    },
+  });
 
   return createUIMessageStreamResponse({
-    stream
-  })
-})
+    stream,
+  });
+});

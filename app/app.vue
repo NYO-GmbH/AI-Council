@@ -17,18 +17,15 @@ useHead({
   },
 });
 
-const title = "Nuxt AI Chatbot template";
+const title = "Tagalong";
 const description =
-  "A full-featured, hackable Nuxt AI chatbot template made with Nuxt UI.";
+  "Tagalong is an AI Council app where multiple agents debate a topic and produce a final verdict.";
 
 useSeoMeta({
   title,
   description,
   ogTitle: title,
   ogDescription: description,
-  ogImage: "https://ui.nuxt.com/assets/templates/nuxt/chat-light.png",
-  twitterImage: "https://ui.nuxt.com/assets/templates/nuxt/chat-light.png",
-  twitterCard: "summary_large_image",
 });
 </script>
 

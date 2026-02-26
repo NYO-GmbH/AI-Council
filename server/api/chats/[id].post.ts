@@ -11,14 +11,7 @@ import { z } from "zod";
 import { db, schema } from "hub:db";
 import { and, eq } from "drizzle-orm";
 import type { UIMessage } from "ai";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-
-const lmstudio = createOpenAICompatible({
-  name: "lmstudio",
-  baseURL: "http://127.0.0.1:1234/v1",
-});
-
-const model = lmstudio("qwen/qwen3-4b-2507");
+import { defaultModel as model } from "../../utils/lmstudio";
 
 defineRouteMeta({
   openAPI: {

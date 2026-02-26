@@ -337,8 +337,9 @@ onUnmounted(() => {
                   class="space-y-3"
                   @submit="startMeeting"
                 >
-                  <UFormField label="Topic">
+                  <UFormField label="Topic" class="w-full">
                     <UTextarea
+                      class="w-full"
                       v-model="topic"
                       :rows="3"
                       placeholder="What should the council discuss?"

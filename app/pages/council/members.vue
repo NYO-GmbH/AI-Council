@@ -32,6 +32,7 @@ const memberPanelTabs = ref<TabsItem[]>([
   { label: "Edit Member", icon: "i-lucide-pencil-line", slot: "profile" },
 ]);
 const savingMember = ref(false);
+const generatingMembers = ref(false);
 
 const newMember = reactive({
   name: "",
@@ -155,6 +156,29 @@ async function createMember() {
   toast.add({ color: "success", description: "Council member created." });
 }
 
+async function generateSampleMembers() {
+  generatingMembers.value = true;
+  try {
+    const result = await $fetch<{ created: number }>("/api/council/members/seed", {
+      method: "POST",
+    });
+    await refreshMembers();
+    if (result.created > 0) {
+      toast.add({
+        color: "success",
+        description: `Generated ${result.created} sample members.`,
+      });
+      return;
+    }
+    toast.add({
+      color: "neutral",
+      description: "Sample members already exist.",
+    });
+  } finally {
+    generatingMembers.value = false;
+  }
+}
+
 async function updateMember(
   member: CouncilMember,
   patch: Partial<CouncilMember>,
@@ -208,6 +232,15 @@ async function saveMemberEdits() {
         description="Create personas, tune voices, and manage who participates in meetings."
       >
         <template #links>
+          <UButton
+            icon="i-lucide-wand-sparkles"
+            color="neutral"
+            variant="soft"
+            :loading="generatingMembers"
+            @click="generateSampleMembers"
+          >
+            Generate sample members
+          </UButton>
           <UButton
             icon="i-lucide-refresh-cw"
             color="neutral"

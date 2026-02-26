@@ -1,4 +1,4 @@
-import { db, schema } from "hub:db";
+import { db, schema } from "~~/server/db";
 import { z } from "zod";
 
 const bodySchema = z.object({

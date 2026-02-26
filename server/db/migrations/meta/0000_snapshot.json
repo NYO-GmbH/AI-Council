@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3ee9c044-91c3-4e93-87e9-840510b37839",
+  "id": "49315ea1-6040-47e5-a688-48aad4457617",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "council_meetings": {

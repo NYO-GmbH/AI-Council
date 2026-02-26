@@ -320,7 +320,7 @@ onUnmounted(() => {
               </p>
               <UCard
                 v-if="activeSpeaker?.member?.id === member.id"
-                variant="solid"
+                variant="subtle"
                 class="speech-bubble"
               >
                 {{ activeSpeaker?.content }}
@@ -571,6 +571,7 @@ onUnmounted(() => {
 
 .speaking {
   transform: translate(-50%, -53%) scale(1.03);
+  z-index: 9;
 }
 
 .speaking .avatar-ring {
@@ -581,7 +582,11 @@ onUnmounted(() => {
 
 .speech-bubble {
   margin: 0.5rem auto 0;
+  position: relative;
+  z-index: 10;
   width: 230px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(17, 24, 39, 0.14);
   color: #111827;
   font-size: 0.8rem;
   line-height: 1.35;
@@ -593,7 +598,7 @@ onUnmounted(() => {
   inset: 0;
   display: grid;
   place-items: center;
-  z-index: 8;
+  z-index: 20;
   background: radial-gradient(
     circle at center,
     rgba(17, 24, 39, 0.22),
@@ -602,7 +607,11 @@ onUnmounted(() => {
 }
 
 .start-card {
+  position: relative;
+  z-index: 21;
   width: min(620px, 92%);
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(6px);
 }
 
 .line {

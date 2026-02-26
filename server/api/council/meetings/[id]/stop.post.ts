@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db, schema } from "hub:db";
+import { db, schema } from "~~/server/db";
 
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event);

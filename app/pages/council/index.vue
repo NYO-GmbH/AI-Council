@@ -22,6 +22,14 @@ const {
   stopMeeting,
   deleteMeeting
 } = useCouncilMeeting()
+
+const hoveredMemberId = ref<string>()
+const createMeetingOpen = ref(false)
+
+async function handleStartMeeting() {
+  await startMeeting()
+  createMeetingOpen.value = false
+}
 </script>
 
 <template>
@@ -31,25 +39,32 @@ const {
       title="Agent Roundtable"
       description="Run, monitor, and steer multi-agent deliberation in real time."
     >
-      <template #links>
-        <UButton
-          icon="i-lucide-refresh-cw"
-          color="neutral"
-          variant="outline"
-          @click="refreshMeetings()"
-        >
-          Refresh
-        </UButton>
-      </template>
       <template #default>
-        <div class="max-w-md">
-          <UFormField label="Meeting">
-            <USelect
-              v-model="selectedMeetingId"
-              :items="meetingOptions"
-              placeholder="Select a meeting"
-            />
-          </UFormField>
+        <div class="flex flex-wrap items-end gap-2">
+          <div class="max-w-md flex-1 min-w-64">
+            <UFormField label="Meeting">
+              <USelect
+                v-model="selectedMeetingId"
+                :items="meetingOptions"
+                placeholder="Select a meeting"
+              />
+            </UFormField>
+          </div>
+          <UButton
+            icon="i-lucide-plus"
+            color="primary"
+            @click="createMeetingOpen = true"
+          >
+            New Council
+          </UButton>
+          <UButton
+            icon="i-lucide-refresh-cw"
+            color="neutral"
+            variant="outline"
+            @click="refreshMeetings()"
+          >
+            Refresh
+          </UButton>
         </div>
       </template>
     </UPageHeader>
@@ -61,17 +76,15 @@ const {
             :meeting="meeting"
             :room-members="roomMembers"
             :active-speaker="activeSpeaker"
+            :highlighted-member-id="hoveredMemberId"
             :round-label="roundLabel"
             :has-active-meeting="Boolean(hasActiveMeeting)"
-            :topic="topic"
-            :rounds="rounds"
-            :creating="creating"
-            @update:topic="topic = $event"
-            @update:rounds="rounds = $event"
-            @start="startMeeting"
           />
 
-          <CouncilTranscriptPanel :transcript="transcript" />
+          <CouncilTranscriptPanel
+            :transcript="transcript"
+            @hover-member="hoveredMemberId = $event"
+          />
         </div>
 
         <CouncilMeetingControls
@@ -94,6 +107,47 @@ const {
       </div>
 
       <CouncilVerdictModal v-model:open="verdictOpen" :verdict="verdict" />
+
+      <UModal v-model:open="createMeetingOpen" title="Start Meeting">
+        <template #body>
+          <UForm
+            :state="{ topic, rounds }"
+            class="space-y-3"
+            @submit="handleStartMeeting"
+          >
+            <UFormField label="Topic" class="w-full">
+              <UTextarea
+                class="w-full"
+                :model-value="topic"
+                :rows="3"
+                placeholder="What should the council discuss?"
+                @update:model-value="topic = $event"
+              />
+            </UFormField>
+            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <UFormField label="Rounds">
+                <UInputNumber
+                  :model-value="rounds"
+                  :min="1"
+                  :max="5"
+                  class="w-full"
+                  @update:model-value="rounds = $event || 1"
+                />
+              </UFormField>
+              <div class="flex items-end">
+                <UButton
+                  type="submit"
+                  :loading="creating"
+                  icon="i-lucide-play"
+                  block
+                >
+                  Start council
+                </UButton>
+              </div>
+            </div>
+          </UForm>
+        </template>
+      </UModal>
     </UPageBody>
   </UContainer>
 </template>

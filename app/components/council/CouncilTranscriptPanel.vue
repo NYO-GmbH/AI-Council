@@ -5,6 +5,10 @@ const props = defineProps<{
   transcript: CouncilMessage[]
 }>()
 
+const emit = defineEmits<{
+  (e: 'hover-member', memberId?: string): void
+}>()
+
 const scrollEl = ref<HTMLElement | null>(null)
 const userPinnedToBottom = ref(true)
 const bottomThresholdPx = 24
@@ -63,6 +67,21 @@ function backToBottom() {
   scrollToBottom('instant')
 }
 
+function hoveredMemberId(message: CouncilMessage) {
+  if (message.role !== 'agent') {
+    return undefined
+  }
+  return message.member?.id
+}
+
+function onMessageEnter(message: CouncilMessage) {
+  emit('hover-member', hoveredMemberId(message))
+}
+
+function onMessageLeave() {
+  emit('hover-member', undefined)
+}
+
 watch(
   transcriptSignature,
   async () => {
@@ -115,7 +134,7 @@ onMounted(async () => {
       description="Start a meeting to begin the roundtable transcript."
     />
 
-    <div v-else class="transcript-shell">
+    <div v-else class="transcript-shell" @mouseleave="onMessageLeave">
       <div
         ref="scrollEl"
         class="transcript-scroll pr-1"
@@ -127,6 +146,8 @@ onMounted(async () => {
             :key="message.id"
             variant="subtle"
             :class="['line', `role-${message.role}`]"
+            @mouseenter="onMessageEnter(message)"
+            @mouseleave="onMessageLeave"
           >
             <div class="mb-1.5 flex items-center justify-between gap-2">
               <UBadge :color="roleColor(message.role)" variant="soft">

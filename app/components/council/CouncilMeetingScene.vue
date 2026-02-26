@@ -5,17 +5,9 @@ const props = defineProps<{
   meeting: CouncilMeeting | null
   roomMembers: CouncilMember[]
   activeSpeaker?: { member: { id: string } | null }
+  highlightedMemberId?: string
   roundLabel: string
   hasActiveMeeting: boolean
-  topic: string
-  rounds: number
-  creating: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'update:topic', value: string): void
-  (e: 'update:rounds', value: number): void
-  (e: 'start'): void
 }>()
 
 function seatStyle(index: number, total: number, color: string) {
@@ -65,7 +57,10 @@ function seatStyle(index: number, total: number, color: string) {
         :key="member.id"
         class="seat"
         :style="seatStyle(index, props.roomMembers.length, member.accentColor)"
-        :class="{ speaking: props.activeSpeaker?.member?.id === member.id }"
+        :class="{
+          speaking: props.activeSpeaker?.member?.id === member.id,
+          highlighted: props.highlightedMemberId === member.id
+        }"
       >
         <div class="avatar-shell">
           <div class="seat-ping" />
@@ -81,47 +76,6 @@ function seatStyle(index: number, total: number, color: string) {
         </p>
       </div>
 
-      <div v-if="!props.hasActiveMeeting" class="start-overlay">
-        <UCard class="start-card" variant="soft">
-          <template #header>
-            <h2 class="font-semibold">
-              Start Meeting
-            </h2>
-          </template>
-          <UForm :state="{ topic: props.topic, rounds: props.rounds }" class="space-y-3" @submit="emit('start')">
-            <UFormField label="Topic" class="w-full">
-              <UTextarea
-                class="w-full"
-                :model-value="props.topic"
-                :rows="3"
-                placeholder="What should the council discuss?"
-                @update:model-value="emit('update:topic', $event)"
-              />
-            </UFormField>
-            <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <UFormField label="Rounds">
-                <UInputNumber
-                  :model-value="props.rounds"
-                  :min="1"
-                  :max="5"
-                  class="w-full"
-                  @update:model-value="emit('update:rounds', $event || 1)"
-                />
-              </UFormField>
-              <div class="flex items-end">
-                <UButton
-                  type="submit"
-                  :loading="props.creating"
-                  icon="i-lucide-play"
-                  block
-                >
-                  Start council
-                </UButton>
-              </div>
-            </div>
-          </UForm>
-        </UCard>
-      </div>
     </div>
   </UCard>
 </template>
@@ -244,11 +198,24 @@ function seatStyle(index: number, total: number, color: string) {
   z-index: 9;
 }
 
+.highlighted:not(.speaking) {
+  transform: translate(-50%, -53%) scale(1.03);
+  z-index: 8;
+}
+
 .speaking .avatar-ring {
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
 }
 
+.highlighted .avatar-ring {
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+}
+
 .speaking .seat-ping {
+  animation: speaker-ping 1.3s ease-out infinite;
+}
+
+.highlighted .seat-ping {
   animation: speaker-ping 1.3s ease-out infinite;
 }
 
@@ -265,27 +232,6 @@ function seatStyle(index: number, total: number, color: string) {
     opacity: 0;
     transform: scale(1.4);
   }
-}
-
-.start-overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  z-index: 20;
-  background: radial-gradient(
-    circle at center,
-    rgba(17, 24, 39, 0.22),
-    rgba(17, 24, 39, 0.52)
-  );
-}
-
-.start-card {
-  position: relative;
-  z-index: 21;
-  width: min(620px, 92%);
-  background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(6px);
 }
 
 @media (max-width: 1400px) {

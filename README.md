@@ -59,7 +59,6 @@ Open the app, go to `/council/members`, and generate sample members before start
 - `npm run dev` - Start local development server
 - `npm run build` - Build for production
 - `npm run preview` - Preview production build
-- `npm run lint` - Run ESLint
 - `npm run typecheck` - Run Nuxt type checks
 - `npm run db:generate` - Generate Drizzle migration files
 - `npm run db:push` - Push schema changes to SQLite

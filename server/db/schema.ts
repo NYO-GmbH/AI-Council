@@ -40,12 +40,29 @@ export const councilMeetings = sqliteTable("council_meetings", {
       queue: string[];
       rounds: number;
       maxRounds: number;
+      phase?: "discussion" | "final_verdicts" | "voting" | "completed";
       proactivePrompt?: string;
       concluded?: boolean;
       verdict?: {
         summary: string;
         winningIdea: string;
         voteResult: string;
+        finalStatements: {
+          memberId: string;
+          memberName: string;
+          memberTitle: string;
+          accentColor: string;
+          statement: string;
+        }[];
+        voteExplanations: {
+          memberId: string;
+          memberName: string;
+          memberTitle: string;
+          accentColor: string;
+          votedForMemberId: string;
+          votedForMemberName: string;
+          reason: string;
+        }[];
       };
     }>()
     .notNull()

@@ -9,6 +9,10 @@ const {
   deleting,
   rounds,
   verdictOpen,
+  meetingPhase,
+  finalStreamSpeaker,
+  finalStreamContent,
+  finalStreamEntries,
   meetingOptions,
   roomMembers,
   transcript,
@@ -106,7 +110,14 @@ async function handleStartMeeting() {
         />
       </div>
 
-      <CouncilVerdictModal v-model:open="verdictOpen" :verdict="verdict" />
+      <CouncilVerdictModal
+        v-model:open="verdictOpen"
+        :verdict="verdict"
+        :phase="meetingPhase"
+        :live-speaker="finalStreamSpeaker"
+        :live-content="finalStreamContent"
+        :live-entries="finalStreamEntries"
+      />
 
       <UModal v-model:open="createMeetingOpen" title="Start Meeting">
         <template #body>

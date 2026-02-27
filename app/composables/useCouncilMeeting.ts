@@ -1,4 +1,5 @@
 import type {
+  FinalPhaseStreamEntry,
   CouncilMeeting,
   CouncilMember,
   CouncilMessage,
@@ -19,6 +20,9 @@ export function useCouncilMeeting() {
   const rounds = ref(2)
   const verdictOpen = ref(false)
   const shouldAutoTick = ref(false)
+  const finalStreamSpeaker = ref<CouncilMember | null>(null)
+  const finalStreamContent = ref('')
+  const finalStreamEntries = ref<FinalPhaseStreamEntry[]>([])
 
   const { data: members } = useFetch<CouncilMember[]>(
     '/api/council/members',
@@ -44,8 +48,16 @@ export function useCouncilMeeting() {
     () => members.value?.filter(member => member.isActive) || []
   )
   const transcript = computed(() => meeting.value?.messages || [])
+  const meetingPhase = computed(() => meeting.value?.state?.phase || 'discussion')
+  const isFinalPhase = computed(() =>
+    meetingPhase.value === 'final_verdicts' || meetingPhase.value === 'voting'
+  )
   const activeSpeaker = computed(() =>
-    meeting.value?.status === 'active'
+    isFinalPhase.value
+      ? (finalStreamSpeaker.value
+          ? { member: finalStreamSpeaker.value }
+          : undefined)
+      : meeting.value?.status === 'active'
       ? [...transcript.value]
           .reverse()
           .find(message => message.role === 'agent')
@@ -55,6 +67,15 @@ export function useCouncilMeeting() {
   const roundLabel = computed(() => {
     if (!meeting.value?.state) {
       return 'Round 0/0'
+    }
+    if (meeting.value.state.phase === 'final_verdicts') {
+      return 'Final Verdicts'
+    }
+    if (meeting.value.state.phase === 'voting') {
+      return 'Final Voting'
+    }
+    if (meeting.value.state.phase === 'completed') {
+      return 'Completed'
     }
     return `Round ${meeting.value.state.rounds}/${meeting.value.state.maxRounds}`
   })
@@ -115,6 +136,12 @@ export function useCouncilMeeting() {
     )
   }
 
+  function resetFinalStream() {
+    finalStreamSpeaker.value = null
+    finalStreamContent.value = ''
+    finalStreamEntries.value = []
+  }
+
   async function tickCouncil(userMessage?: string) {
     if (!selectedMeetingId.value || ticking.value || !hasActiveMeeting.value) {
       return
@@ -169,15 +196,26 @@ export function useCouncilMeeting() {
             ...event.member,
             isActive: true
           }
+          if (isFinalPhase.value) {
+            finalStreamSpeaker.value = streamMember
+            finalStreamContent.value = ''
+            return
+          }
           upsertStreamingMessage('', streamMember)
           return
         }
         if (event.type === 'message_content') {
+          if (isFinalPhase.value) {
+            finalStreamContent.value = event.content
+            return
+          }
           upsertStreamingMessage(event.content, streamMember)
           return
         }
         if (event.type === 'message') {
-          removeStreamingMessage()
+          if (!isFinalPhase.value) {
+            removeStreamingMessage()
+          }
           if (!meeting.value) {
             return
           }
@@ -185,6 +223,36 @@ export function useCouncilMeeting() {
             meeting.value.messages = []
           }
           meeting.value.messages.push(event.message)
+          if (
+            isFinalPhase.value
+            && event.message.member
+            && (meetingPhase.value === 'final_verdicts' || meetingPhase.value === 'voting')
+          ) {
+            finalStreamEntries.value.push({
+              id: event.message.id,
+              phase: meetingPhase.value,
+              content: event.message.content,
+              createdAt: event.message.createdAt,
+              member: event.message.member
+            })
+            finalStreamSpeaker.value = null
+            finalStreamContent.value = ''
+          }
+          return
+        }
+        if (event.type === 'phase' && meeting.value) {
+          meeting.value.state = {
+            ...meeting.value.state,
+            phase: event.phase
+          }
+          if (event.phase === 'final_verdicts') {
+            resetFinalStream()
+            verdictOpen.value = true
+          }
+          if (event.phase === 'completed') {
+            finalStreamSpeaker.value = null
+            finalStreamContent.value = ''
+          }
           return
         }
         if (
@@ -193,6 +261,10 @@ export function useCouncilMeeting() {
           && meeting.value
         ) {
           meeting.value.status = 'completed'
+          meeting.value.state = {
+            ...meeting.value.state,
+            phase: 'completed'
+          }
         }
         if (event.type === 'error') {
           throw new Error(event.message)
@@ -216,6 +288,10 @@ export function useCouncilMeeting() {
         consumeEvent(tail)
       }
       removeStreamingMessage()
+      if (!isFinalPhase.value) {
+        finalStreamSpeaker.value = null
+        finalStreamContent.value = ''
+      }
       await loadMeeting(selectedMeetingId.value)
       await refreshMeetings()
     } catch (error: unknown) {
@@ -363,8 +439,10 @@ export function useCouncilMeeting() {
   watch(selectedMeetingId, async (id) => {
     if (id) {
       await loadMeeting(id)
+      resetFinalStream()
     } else {
       meeting.value = null
+      resetFinalStream()
     }
   })
 
@@ -411,6 +489,10 @@ export function useCouncilMeeting() {
     deleting,
     rounds,
     verdictOpen,
+    meetingPhase,
+    finalStreamSpeaker,
+    finalStreamContent,
+    finalStreamEntries,
     meetingOptions,
     roomMembers,
     transcript,

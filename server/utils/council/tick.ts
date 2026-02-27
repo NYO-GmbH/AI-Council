@@ -5,6 +5,10 @@ export type TickStreamEvent
     verdict?: unknown
   }
   | {
+    type: 'phase'
+    phase: 'discussion' | 'final_verdicts' | 'voting' | 'completed'
+  }
+  | {
     type: 'speaker'
     member: {
       id: string

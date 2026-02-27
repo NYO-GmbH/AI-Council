@@ -24,7 +24,8 @@ export default defineEventHandler(async (event) => {
       state: {
         queue,
         rounds: 0,
-        maxRounds: rounds
+        maxRounds: rounds,
+        phase: 'discussion'
       }
     })
     .returning()

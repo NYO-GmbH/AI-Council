@@ -24,15 +24,15 @@ const {
   startMeeting,
   sendNudge,
   stopMeeting,
-  deleteMeeting
-} = useCouncilMeeting()
+  deleteMeeting,
+} = useCouncilMeeting();
 
-const hoveredMemberId = ref<string>()
-const createMeetingOpen = ref(false)
+const hoveredMemberId = ref<string>();
+const createMeetingOpen = ref(false);
 
 async function handleStartMeeting() {
-  await startMeeting()
-  createMeetingOpen.value = false
+  await startMeeting();
+  createMeetingOpen.value = false;
 }
 </script>
 
@@ -46,11 +46,12 @@ async function handleStartMeeting() {
       <template #default>
         <div class="flex flex-wrap items-end gap-2">
           <div class="max-w-md flex-1 min-w-64">
-            <UFormField label="Meeting">
+            <UFormField label="Meeting" class="w-full truncate">
               <USelect
                 v-model="selectedMeetingId"
                 :items="meetingOptions"
                 placeholder="Select a meeting"
+                class="w-full truncate"
               />
             </UFormField>
           </div>
@@ -75,7 +76,9 @@ async function handleStartMeeting() {
 
     <UPageBody>
       <div class="space-y-4">
-        <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start">
+        <div
+          class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start"
+        >
           <CouncilMeetingScene
             :meeting="meeting"
             :room-members="roomMembers"

@@ -5,4 +5,6 @@ export const lmstudio = createOpenAICompatible({
   baseURL: process.env.LM_STUDIO_BASE_URL || "http://localhost:1235/v1",
 });
 
-export const defaultModel = lmstudio("qwen/qwen3-4b-2507");
+export const defaultModel = lmstudio(
+  process.env.LM_STUDIO_MODEL_NAME || "qwen/qwen3-4b-2507",
+);

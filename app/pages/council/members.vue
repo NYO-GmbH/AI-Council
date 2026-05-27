@@ -24,12 +24,12 @@ const toast = useToast();
 const selectedMemberId = ref<string>();
 const memberPanelOpen = ref(false);
 const memberTabs = ref<TabsItem[]>([
-  { label: "Roster", icon: "i-lucide-users", slot: "roster" },
-  { label: "Active only", icon: "i-lucide-user-check", slot: "active" },
+  { label: "Alle", icon: "i-lucide-users", slot: "roster" },
+  { label: "Nur Aktive", icon: "i-lucide-user-check", slot: "active" },
 ]);
 const memberPanelTabs = ref<TabsItem[]>([
-  { label: "Past Outputs", icon: "i-lucide-history", slot: "outputs" },
-  { label: "Edit Member", icon: "i-lucide-pencil-line", slot: "profile" },
+  { label: "Frühere Ausgaben", icon: "i-lucide-history", slot: "outputs" },
+  { label: "Mitglied bearbeiten", icon: "i-lucide-pencil-line", slot: "profile" },
 ]);
 const savingMember = ref(false);
 const generatingMembers = ref(false);
@@ -153,7 +153,7 @@ async function createMember() {
     accentColor: "#3B82F6",
   });
   await refreshMembers();
-  toast.add({ color: "success", description: "Council member created." });
+  toast.add({ color: "success", description: "Ratsmitglied erstellt." });
 }
 
 async function generateSampleMembers() {
@@ -166,13 +166,13 @@ async function generateSampleMembers() {
     if (result.created > 0) {
       toast.add({
         color: "success",
-        description: `Generated ${result.created} sample members.`,
+        description: `${result.created} Beispielmitglieder generiert.`,
       });
       return;
     }
     toast.add({
       color: "neutral",
-      description: "Sample members already exist.",
+      description: "Beispielmitglieder existieren bereits.",
     });
   } finally {
     generatingMembers.value = false;
@@ -216,7 +216,7 @@ async function saveMemberEdits() {
       accentColor: memberDraft.accentColor,
       isActive: memberDraft.isActive,
     });
-    toast.add({ color: "success", description: "Member updated." });
+    toast.add({ color: "success", description: "Mitglied aktualisiert." });
   } finally {
     savingMember.value = false;
   }
@@ -227,9 +227,9 @@ async function saveMemberEdits() {
   <div>
     <UContainer>
       <UPageHeader
-        headline="Council Admin"
-        title="Member Management"
-        description="Create personas, tune voices, and manage who participates in meetings."
+        headline="Ratsverwaltung"
+        title="Mitgliederverwaltung"
+        description="Erstelle Personen, passe Stimmen an und verwalte, wer an Sitzungen teilnimmt."
       >
         <template #links>
           <UButton
@@ -239,7 +239,7 @@ async function saveMemberEdits() {
             :loading="generatingMembers"
             @click="generateSampleMembers"
           >
-            Generate sample members
+            Beispielmitglieder generieren
           </UButton>
           <UButton
             icon="i-lucide-refresh-cw"
@@ -247,7 +247,7 @@ async function saveMemberEdits() {
             variant="outline"
             @click="refreshMembers()"
           >
-            Refresh
+            Aktualisieren
           </UButton>
         </template>
       </UPageHeader>
@@ -257,9 +257,9 @@ async function saveMemberEdits() {
           <UCard variant="soft">
             <template #header>
               <div class="flex items-center justify-between gap-3">
-                <h2 class="text-base font-semibold">Create Member</h2>
+                <h2 class="text-base font-semibold">Mitglied erstellen</h2>
                 <UBadge color="neutral" variant="subtle">
-                  {{ members.length }} total
+                  {{ members.length }} gesamt
                 </UBadge>
               </div>
             </template>
@@ -273,32 +273,32 @@ async function saveMemberEdits() {
                 />
               </UFormField>
 
-              <UFormField label="Role title" required>
+              <UFormField label="Rollenbezeichnung" required>
                 <UInput
                   v-model="newMember.title"
-                  placeholder="Strategist"
+                  placeholder="Stratege"
                   class="w-full"
                 />
               </UFormField>
 
-              <UFormField label="Personality and voice">
+              <UFormField label="Persönlichkeit und Stimme">
                 <UTextarea
                   v-model="newMember.personality"
                   :rows="3"
-                  placeholder="How this member speaks and thinks"
+                  placeholder="Wie dieses Mitglied spricht und denkt"
                   class="w-full"
                 />
               </UFormField>
 
-              <UFormField label="Primary objective">
+              <UFormField label="Hauptziel">
                 <UInput
                   v-model="newMember.objective"
-                  placeholder="Drive practical decisions"
+                  placeholder="Praktische Entscheidungen vorantreiben"
                   class="w-full"
                 />
               </UFormField>
 
-              <UFormField label="Accent color">
+              <UFormField label="Akzentfarbe">
                 <div class="grid grid-cols-[auto_1fr] items-center gap-3">
                   <UColorPicker v-model="newMember.accentColor" />
                   <UInput v-model="newMember.accentColor" class="w-full" />
@@ -308,15 +308,15 @@ async function saveMemberEdits() {
               <UCard variant="subtle">
                 <div class="flex items-center gap-3">
                   <UAvatar
-                    :alt="newMember.name || 'Council member'"
+                    :alt="newMember.name || 'Ratsmitglied'"
                     size="lg"
                   />
                   <div class="space-y-1">
                     <p class="font-medium">
-                      {{ newMember.name || "Preview member" }}
+                      {{ newMember.name || "Vorschau" }}
                     </p>
                     <p class="text-sm text-muted">
-                      {{ newMember.title || "Role title" }}
+                      {{ newMember.title || "Rollenbezeichnung" }}
                     </p>
                     <UBadge
                       color="neutral"
@@ -335,7 +335,7 @@ async function saveMemberEdits() {
                 block
                 :disabled="!newMember.name.trim() || !newMember.title.trim()"
               >
-                Add council member
+                Ratsmitglied hinzufügen
               </UButton>
             </UForm>
           </UCard>
@@ -343,13 +343,13 @@ async function saveMemberEdits() {
           <UCard variant="soft">
             <template #header>
               <div class="flex flex-wrap items-center justify-between gap-3">
-                <h2 class="text-base font-semibold">Council Members</h2>
+                <h2 class="text-base font-semibold">Ratsmitglieder</h2>
                 <div class="flex items-center gap-2">
                   <UBadge color="success" variant="subtle">
-                    {{ activeMembers.length }} active
+                    {{ activeMembers.length }} aktiv
                   </UBadge>
                   <UBadge color="neutral" variant="subtle">
-                    {{ members.length - activeMembers.length }} paused
+                    {{ members.length - activeMembers.length }} pausiert
                   </UBadge>
                 </div>
               </div>
@@ -361,8 +361,8 @@ async function saveMemberEdits() {
                   <UEmpty
                     v-if="members.length === 0"
                     icon="i-lucide-users"
-                    title="No members yet"
-                    description="Create your first member from the panel on the left."
+                    title="Noch keine Mitglieder"
+                    description="Erstelle dein erstes Mitglied im Panel links."
                     variant="naked"
                   />
                   <UCard
@@ -390,7 +390,7 @@ async function saveMemberEdits() {
                       <div class="flex items-center gap-1" @click.stop>
                         <UTooltip
                           :text="
-                            member.isActive ? 'Pause member' : 'Activate member'
+                            member.isActive ? 'Mitglied pausieren' : 'Mitglied aktivieren'
                           "
                         >
                           <USwitch
@@ -401,7 +401,7 @@ async function saveMemberEdits() {
                             "
                           />
                         </UTooltip>
-                        <UTooltip text="Delete member">
+                        <UTooltip text="Mitglied löschen">
                           <UButton
                             color="error"
                             variant="ghost"
@@ -420,8 +420,8 @@ async function saveMemberEdits() {
                   <UEmpty
                     v-if="activeMembers.length === 0"
                     icon="i-lucide-user-x"
-                    title="No active members"
-                    description="Enable at least one member to include them in council runs."
+                    title="Keine aktiven Mitglieder"
+                    description="Aktiviere mindestens ein Mitglied, damit es an Ratssitzungen teilnimmt."
                     variant="naked"
                   />
                   <UCard
@@ -453,8 +453,8 @@ async function saveMemberEdits() {
 
     <USlideover
       v-model:open="memberPanelOpen"
-      title="Member Panel"
-      :description="selectedMember?.name || 'No member selected'"
+      title="Mitgliederpanel"
+      :description="selectedMember?.name || 'Kein Mitglied ausgewählt'"
       side="right"
       :ui="{ content: 'max-w-xl w-full' }"
     >
@@ -464,14 +464,14 @@ async function saveMemberEdits() {
             <UEmpty
               v-if="!selectedMemberId"
               icon="i-lucide-message-square-off"
-              title="Select a member"
-              description="Choose a council member to browse their outputs."
+              title="Mitglied auswählen"
+              description="Wähle ein Ratsmitglied aus, um dessen Ausgaben anzusehen."
             />
             <UEmpty
               v-else-if="outputs.length === 0"
               icon="i-lucide-inbox"
-              title="No outputs yet"
-              description="This member hasn't produced any responses yet."
+              title="Noch keine Ausgaben"
+              description="Dieses Mitglied hat noch keine Antworten verfasst."
             />
             <UScrollArea v-else class="h-[calc(100vh-13rem)] pr-1">
               <UTimeline
@@ -487,8 +487,8 @@ async function saveMemberEdits() {
             <UEmpty
               v-if="!selectedMember"
               icon="i-lucide-user-round-x"
-              title="No member selected"
-              description="Choose a member from the list to edit their profile."
+              title="Kein Mitglied ausgewählt"
+              description="Wähle ein Mitglied aus der Liste aus, um das Profil zu bearbeiten."
             />
             <UForm
               v-else
@@ -499,26 +499,26 @@ async function saveMemberEdits() {
               <UFormField label="Name" required>
                 <UInput v-model="memberDraft.name" class="w-full" />
               </UFormField>
-              <UFormField label="Role title" required>
+              <UFormField label="Rollenbezeichnung" required>
                 <UInput v-model="memberDraft.title" class="w-full" />
               </UFormField>
-              <UFormField label="Personality and voice">
+              <UFormField label="Persönlichkeit und Stimme">
                 <UTextarea
                   v-model="memberDraft.personality"
                   :rows="3"
                   class="w-full"
                 />
               </UFormField>
-              <UFormField label="Primary objective">
+              <UFormField label="Hauptziel">
                 <UInput v-model="memberDraft.objective" class="w-full" />
               </UFormField>
-              <UFormField label="Accent color">
+              <UFormField label="Akzentfarbe">
                 <div class="grid grid-cols-[auto_1fr] items-center gap-3">
                   <UColorPicker v-model="memberDraft.accentColor" />
                   <UInput v-model="memberDraft.accentColor" class="w-full" />
                 </div>
               </UFormField>
-              <UFormField label="Active in council">
+              <UFormField label="Im Rat aktiv">
                 <USwitch v-model="memberDraft.isActive" />
               </UFormField>
               <UButton
@@ -527,7 +527,7 @@ async function saveMemberEdits() {
                 :loading="savingMember"
                 block
               >
-                Save changes
+                Änderungen speichern
               </UButton>
             </UForm>
           </template>

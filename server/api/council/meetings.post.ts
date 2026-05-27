@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
     {
       meetingId: meeting.id,
       role: 'system',
-      content: `Council meeting opened: ${topic}`
+      content: `Ratssitzung eröffnet: ${topic}`
     },
     {
       meetingId: meeting.id,

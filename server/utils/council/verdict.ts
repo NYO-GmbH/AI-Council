@@ -1,5 +1,5 @@
 import { generateText } from 'ai'
-import { defaultModel } from '../lmstudio'
+import { getModel } from '../lmstudio'
 import { clipText } from './text'
 
 export interface VerdictMemberInput {
@@ -71,37 +71,37 @@ export async function generateVerdict(
     .join('\n')
 
   const { text } = await generateText({
-    model: defaultModel,
-    system: `You are a neutral council moderator.
-Create a concise final summary and identify the winning idea.
-Return plain text in this exact format:
-SUMMARY: <1-2 sentences>
-WINNING_IDEA: <single sentence>`,
-    prompt: `Meeting topic: ${topic}
+    model: await getModel(),
+    system: `Du bist ein neutraler Ratsmoderator.
+Erstelle eine prägnante Abschlusszusammenfassung und identifiziere die Gewinneridee.
+Antworte auf Deutsch in genau diesem Format:
+ZUSAMMENFASSUNG: <1-2 Sätze>
+GEWINNERIDEE: <ein Satz>`,
+    prompt: `Sitzungsthema: ${topic}
 
-Transcript:
-${transcript || 'No transcript.'}
+Protokoll:
+${transcript || 'Kein Protokoll.'}
 
-Final verdict statements:
-${statementSummary || 'None.'}
+Abschlussurteile:
+${statementSummary || 'Keine.'}
 
-Voting explanations:
-${voteSummary || 'None.'}`
+Abstimmungserklärungen:
+${voteSummary || 'Keine.'}`
   })
 
   const lines = text.split('\n').map(line => line.trim())
   const summary
     = lines
-      .find(line => line.startsWith('SUMMARY:'))
-      ?.replace('SUMMARY:', '')
-      .trim() || 'The council discussion is complete.'
+      .find(line => line.startsWith('ZUSAMMENFASSUNG:'))
+      ?.replace('ZUSAMMENFASSUNG:', '')
+      .trim() || 'Die Ratsdiskussion ist abgeschlossen.'
   const winningIdea
     = lines
-      .find(line => line.startsWith('WINNING_IDEA:'))
-      ?.replace('WINNING_IDEA:', '')
+      .find(line => line.startsWith('GEWINNERIDEE:'))
+      ?.replace('GEWINNERIDEE:', '')
       .trim()
 
-  const voteResult = buildVoteResult(voteExplanations) || 'No vote result available.'
+  const voteResult = buildVoteResult(voteExplanations) || 'Kein Abstimmungsergebnis verfügbar.'
   const topVotedName = findTopVotedName(voteExplanations)
 
   return {
@@ -109,8 +109,8 @@ ${voteSummary || 'None.'}`
     winningIdea: clipText(
       winningIdea
       || (topVotedName
-        ? `${topVotedName}'s proposal received the strongest support.`
-        : 'No clear winning idea was identified.'),
+        ? `Der Vorschlag von ${topVotedName} erhielt die stärkste Unterstützung.`
+        : 'Es wurde keine klare Gewinneridee identifiziert.'),
       220
     ),
     voteResult: clipText(voteResult, 220),

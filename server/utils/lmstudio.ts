@@ -1,10 +1,7 @@
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { createOpenAICompatible } from '@ai-sdk/openai-compatible'
+import { getSettings } from './settings'
 
-export const lmstudio = createOpenAICompatible({
-  name: "lmstudio",
-  baseURL: process.env.LM_STUDIO_BASE_URL || "http://localhost:1235/v1",
-});
-
-export const defaultModel = lmstudio(
-  process.env.LM_STUDIO_MODEL_NAME || "qwen/qwen3-4b-2507",
-);
+export async function getModel() {
+  const { baseUrl, modelName } = await getSettings()
+  return createOpenAICompatible({ name: 'lmstudio', baseURL: baseUrl })(modelName)
+}

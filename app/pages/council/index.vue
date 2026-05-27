@@ -39,18 +39,18 @@ async function handleStartMeeting() {
 <template>
   <UContainer>
     <UPageHeader
-      headline="Council Chamber"
-      title="Agent Roundtable"
-      description="Run, monitor, and steer multi-agent deliberation in real time."
+      headline="Ratskammer"
+      title="Agenten-Rundtisch"
+      description="Führe, überwache und steuere die Beratung mehrerer Agenten in Echtzeit."
     >
       <template #default>
         <div class="flex flex-wrap items-end gap-2">
           <div class="max-w-md flex-1 min-w-64">
-            <UFormField label="Meeting" class="w-full truncate">
+            <UFormField label="Sitzung" class="w-full truncate">
               <USelect
                 v-model="selectedMeetingId"
                 :items="meetingOptions"
-                placeholder="Select a meeting"
+                placeholder="Sitzung auswählen"
                 class="w-full truncate"
               />
             </UFormField>
@@ -60,7 +60,7 @@ async function handleStartMeeting() {
             color="primary"
             @click="createMeetingOpen = true"
           >
-            New Council
+            Neue Sitzung
           </UButton>
           <UButton
             icon="i-lucide-refresh-cw"
@@ -68,7 +68,7 @@ async function handleStartMeeting() {
             variant="outline"
             @click="refreshMeetings()"
           >
-            Refresh
+            Aktualisieren
           </UButton>
         </div>
       </template>
@@ -122,24 +122,24 @@ async function handleStartMeeting() {
         :live-entries="finalStreamEntries"
       />
 
-      <UModal v-model:open="createMeetingOpen" title="Start Meeting">
+      <UModal v-model:open="createMeetingOpen" title="Sitzung starten">
         <template #body>
           <UForm
             :state="{ topic, rounds }"
             class="space-y-3"
             @submit="handleStartMeeting"
           >
-            <UFormField label="Topic" class="w-full">
+            <UFormField label="Thema" class="w-full">
               <UTextarea
                 class="w-full"
                 :model-value="topic"
                 :rows="3"
-                placeholder="What should the council discuss?"
+                placeholder="Worüber soll der Rat beraten?"
                 @update:model-value="topic = $event"
               />
             </UFormField>
             <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <UFormField label="Rounds">
+              <UFormField label="Runden">
                 <UInputNumber
                   :model-value="rounds"
                   :min="1"
@@ -155,7 +155,7 @@ async function handleStartMeeting() {
                   icon="i-lucide-play"
                   block
                 >
-                  Start council
+                  Rat starten
                 </UButton>
               </div>
             </div>

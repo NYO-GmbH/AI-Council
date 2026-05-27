@@ -10,6 +10,17 @@ const props = defineProps<{
   hasActiveMeeting: boolean
 }>()
 
+const statusLabels: Record<string, string> = {
+  active: 'aktiv',
+  paused: 'pausiert',
+  completed: 'abgeschlossen',
+  idle: 'inaktiv',
+}
+
+function translateStatus(status: string) {
+  return statusLabels[status] ?? status
+}
+
 function seatStyle(index: number, total: number, color: string) {
   const angle = ((Math.PI * 2) / Math.max(total, 1)) * index - Math.PI / 2
   const radius = 28
@@ -34,20 +45,20 @@ function seatStyle(index: number, total: number, color: string) {
           {{ props.roundLabel }}
         </UBadge>
         <UBadge :color="props.hasActiveMeeting ? 'success' : 'neutral'" variant="soft">
-          {{ props.meeting?.status || 'idle' }}
+          {{ translateStatus(props.meeting?.status || 'idle') }}
         </UBadge>
         <UBadge color="neutral" variant="outline">
-          {{ props.roomMembers.length }} active members
+          {{ props.roomMembers.length }} aktive Mitglieder
         </UBadge>
       </div>
 
       <div class="table-core">
         <div class="table-center">
           <p class="text-xs uppercase tracking-[0.3em] text-white/75">
-            Meeting Topic
+            Sitzungsthema
           </p>
           <p class="text-sm font-semibold text-white sm:text-base">
-            {{ props.meeting?.topic || 'No meeting selected' }}
+            {{ props.meeting?.topic || 'Keine Sitzung ausgewählt' }}
           </p>
         </div>
       </div>

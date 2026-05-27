@@ -2,16 +2,17 @@
 import type { NavigationMenuItem } from "@nuxt/ui";
 
 const route = useRoute();
+const settingsOpen = ref(false);
 
 const navItems = computed<NavigationMenuItem[]>(() => [
   {
-    label: "Chamber",
+    label: "Kammer",
     icon: "i-lucide-orbit",
     to: "/council",
     active: route.path === "/council",
   },
   {
-    label: "Members",
+    label: "Mitglieder",
     icon: "i-lucide-users",
     to: "/council/members",
     active: route.path.startsWith("/council/members"),
@@ -33,6 +34,13 @@ const navItems = computed<NavigationMenuItem[]>(() => [
       <UNavigationMenu :items="navItems" variant="link" />
 
       <template #right>
+        <UButton
+          icon="i-lucide-settings"
+          color="neutral"
+          variant="ghost"
+          aria-label="Einstellungen"
+          @click="settingsOpen = true"
+        />
         <UColorModeButton />
       </template>
 
@@ -49,5 +57,7 @@ const navItems = computed<NavigationMenuItem[]>(() => [
     <UMain>
       <slot />
     </UMain>
+
+    <SettingsModal v-model:open="settingsOpen" />
   </div>
 </template>

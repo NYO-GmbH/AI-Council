@@ -1,0 +1,21 @@
+services:
+  app:
+    build: .
+    ports:
+      - "${HOST_PORT:-3000}:3000"
+    environment:
+      # Point to LM Studio running on the host machine.
+      # Docker Desktop (Mac/Windows) resolves host.docker.internal automatically.
+      # On Linux the extra_hosts entry below adds the same alias.
+      - LM_STUDIO_BASE_URL=http://host.docker.internal:1235/v1
+      - LM_STUDIO_MODEL_NAME=qwen/qwen3-4b-2507
+    volumes:
+      - db_data:/app/server/db
+      - kv_data:/app/.data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  kv_data:

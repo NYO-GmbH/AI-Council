@@ -30,12 +30,12 @@ const isOpen = computed({
 
 const livePhaseLabel = computed(() => {
   if (props.phase === 'final_verdicts') {
-    return 'Generating Final Verdicts'
+    return 'Abschlussurteile werden generiert'
   }
   if (props.phase === 'voting') {
-    return 'Live Voting'
+    return 'Abstimmung läuft'
   }
-  return 'Live Final Phase'
+  return 'Finale Phase läuft'
 })
 
 const finalStatements = computed(() => props.verdict?.finalStatements || [])
@@ -78,7 +78,7 @@ function initials(name: string) {
 </script>
 
 <template>
-  <UModal v-model:open="isOpen" title="Final Verdict" :ui="{ content: 'sm:max-w-5xl' }">
+  <UModal v-model:open="isOpen" title="Abschlussurteil" :ui="{ content: 'sm:max-w-5xl' }">
     <template #body>
       <div
         v-if="!props.verdict && (props.phase === 'final_verdicts' || props.phase === 'voting')"
@@ -89,7 +89,7 @@ function initials(name: string) {
             {{ livePhaseLabel }}
           </UBadge>
           <UBadge color="neutral" variant="outline">
-            {{ props.liveEntries?.length || 0 }} completed
+            {{ props.liveEntries?.length || 0 }} abgeschlossen
           </UBadge>
         </div>
 
@@ -105,17 +105,17 @@ function initials(name: string) {
               </div>
               <div>
                 <p class="font-semibold text-sm">
-                  {{ props.liveSpeaker?.name || 'Council Member' }}
+                  {{ props.liveSpeaker?.name || 'Ratsmitglied' }}
                 </p>
                 <p class="text-xs text-muted">
-                  {{ props.liveSpeaker?.title || 'Preparing statement...' }}
+                  {{ props.liveSpeaker?.title || 'Stellungnahme wird vorbereitet...' }}
                 </p>
               </div>
             </div>
           </template>
 
           <p class="text-sm leading-relaxed min-h-12">
-            {{ props.liveContent || 'Thinking...' }}
+            {{ props.liveContent || 'Wird überlegt...' }}
           </p>
         </UCard>
 
@@ -135,7 +135,7 @@ function initials(name: string) {
                 </span>
               </div>
               <UBadge :color="entry.phase === 'voting' ? 'warning' : 'info'" variant="soft" size="sm">
-                {{ entry.phase === 'voting' ? 'Vote' : 'Final verdict' }}
+                {{ entry.phase === 'voting' ? 'Abstimmung' : 'Abschlussurteil' }}
               </UBadge>
             </div>
             <p class="text-sm leading-relaxed">
@@ -148,7 +148,7 @@ function initials(name: string) {
       <div v-else-if="props.verdict" class="space-y-4 text-sm">
         <div class="flex items-center justify-end gap-2">
           <UBadge color="neutral" variant="soft">
-            {{ finalStatements.length }} final verdicts
+            {{ finalStatements.length }} Abschlussurteile
           </UBadge>
         </div>
 
@@ -184,7 +184,7 @@ function initials(name: string) {
             </p>
             <div class="mt-3 border-t border-default pt-2">
               <p class="text-[11px] uppercase tracking-[0.12em] text-muted mb-1">
-                Voted by
+                Gewählt von
               </p>
               <div class="flex flex-wrap items-center gap-1.5">
                 <UPopover
@@ -214,7 +214,7 @@ function initials(name: string) {
                   v-if="!(votesByTarget.get(statement.memberId) || []).length"
                   class="text-xs text-muted"
                 >
-                  No votes
+                  Keine Stimmen
                 </span>
               </div>
             </div>
@@ -224,8 +224,8 @@ function initials(name: string) {
       <UEmpty
         v-else
         icon="i-lucide-hourglass"
-        title="No verdict yet"
-        description="The council will publish a final verdict when deliberation concludes."
+        title="Noch kein Urteil"
+        description="Der Rat wird ein Abschlussurteil veröffentlichen, wenn die Beratung abgeschlossen ist."
       />
     </template>
   </UModal>

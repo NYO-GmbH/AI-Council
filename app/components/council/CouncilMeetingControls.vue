@@ -21,7 +21,7 @@ const emit = defineEmits<{
       :disabled="!props.hasVerdict"
       @click="emit('show-verdict')"
     >
-      Show final verdict
+      Abschlussurteil anzeigen
     </UButton>
     <UButton
       icon="i-lucide-square"
@@ -32,7 +32,7 @@ const emit = defineEmits<{
       :disabled="!props.hasActiveMeeting"
       @click="emit('stop')"
     >
-      Stop meeting
+      Sitzung beenden
     </UButton>
     <UButton
       icon="i-lucide-trash-2"
@@ -43,7 +43,7 @@ const emit = defineEmits<{
       :disabled="!props.hasSelection"
       @click="emit('delete')"
     >
-      Delete meeting
+      Sitzung löschen
     </UButton>
   </div>
 </template>

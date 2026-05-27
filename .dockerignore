@@ -1,0 +1,22 @@
+node_modules
+.nuxt
+.output
+.data
+.nitro
+.cache
+dist
+
+# SQLite file — created at runtime inside the container
+server/db/*.sqlite
+
+# Git / editor
+.git
+.DS_Store
+.idea
+.vscode
+*.log
+
+# Local env (injected via docker-compose environment: block instead)
+.env
+.env.*
+!.env.example

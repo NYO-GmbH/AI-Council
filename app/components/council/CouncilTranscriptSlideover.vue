@@ -20,7 +20,7 @@ function roleLabel(message: CouncilMessage) {
     return message.member?.name || 'Agent'
   }
   if (message.role === 'user') {
-    return 'You'
+    return 'Du'
   }
   return 'System'
 }
@@ -39,7 +39,7 @@ function roleColor(role: CouncilMessage['role']) {
 <template>
   <USlideover
     v-model:open="isOpen"
-    title="Live Transcript"
+    title="Live-Protokoll"
     side="right"
     :ui="{ content: 'max-w-xl w-full' }"
   >
@@ -47,8 +47,8 @@ function roleColor(role: CouncilMessage['role']) {
       <UEmpty
         v-if="props.transcript.length === 0"
         icon="i-lucide-messages-square"
-        title="No messages yet"
-        description="Start a meeting to begin the roundtable transcript."
+        title="Noch keine Nachrichten"
+        description="Starte eine Sitzung, um das Protokoll zu beginnen."
       />
       <UScrollArea v-else class="pr-1">
         <div class="space-y-3 pr-2">

@@ -26,7 +26,7 @@ function roleLabel(message: CouncilMessage) {
     return message.member?.name || 'Agent'
   }
   if (message.role === 'user') {
-    return 'You'
+    return 'Du'
   }
   return 'System'
 }
@@ -108,7 +108,7 @@ onMounted(async () => {
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-2">
           <h2 class="font-semibold">
-            Live Transcript
+            Live-Protokoll
           </h2>
           <UBadge color="neutral" variant="soft">
             {{ props.transcript.length }}
@@ -122,7 +122,7 @@ onMounted(async () => {
           size="xs"
           @click="backToBottom"
         >
-          Re-pin
+          Anheften
         </UButton>
       </div>
     </template>
@@ -130,8 +130,8 @@ onMounted(async () => {
     <UEmpty
       v-if="props.transcript.length === 0"
       icon="i-lucide-messages-square"
-      title="No messages yet"
-      description="Start a meeting to begin the roundtable transcript."
+      title="Noch keine Nachrichten"
+      description="Starte eine Sitzung, um das Protokoll zu beginnen."
     />
 
     <div v-else class="transcript-shell" @mouseleave="onMessageLeave">

@@ -1,7 +1,7 @@
 import { generateText, streamText } from 'ai'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '~~/server/db'
-import { defaultModel } from '~~/server/utils/lmstudio'
+import { getModel } from '~~/server/utils/lmstudio'
 import {
   getActiveCouncilMembersOrThrow,
   getMeetingWithMessagesOrThrow
@@ -67,7 +67,7 @@ export default defineEventHandler(async (event) => {
                   = message.role === 'agent'
                     ? message.member?.name || 'Agent'
                     : message.role === 'user'
-                      ? 'User'
+                      ? 'Nutzer'
                       : 'System'
                 return `${author}: ${message.content}`
               })
@@ -89,7 +89,7 @@ export default defineEventHandler(async (event) => {
             })
 
             const result = streamText({
-              model: defaultModel,
+              model: await getModel(),
               system: params.system,
               prompt: params.prompt
             })
@@ -201,22 +201,23 @@ export default defineEventHandler(async (event) => {
                 for (const member of activeMembers) {
                   const statement = await streamAgentMessage({
                     member,
-                    system: `You are ${member.name}, ${member.title}, in an AI council.
-Personality: ${member.personality}
-Objective: ${member.objective}
+                    system: `Du bist ${member.name}, ${member.title}, in einem KI-Rat.
+Persönlichkeit: ${member.personality}
+Ziel: ${member.objective}
 
-Rules:
-- This is your personal FINAL VERDICT after discussion has ended.
-- Start with "My final verdict:"
-- Keep your response to 2 concise sentences.
-- State your recommended direction and why it should win.
-- Do not use markdown headings or bullet points.`,
-                    prompt: `Meeting topic: ${meeting.topic}
+Regeln:
+- Dies ist dein persönliches ABSCHLUSSURTEIL nach Ende der Diskussion.
+- Beginne mit "Mein Abschlussurteil:"
+- Halte deine Antwort auf 2 prägnante Sätze.
+- Nenne deine empfohlene Richtung und erkläre, warum sie gewinnen sollte.
+- Verwende keine Markdown-Überschriften oder Aufzählungszeichen.
+- Antworte auf Deutsch.`,
+                    prompt: `Sitzungsthema: ${meeting.topic}
 
-Recent transcript:
-${transcriptText(transcriptMessages) || 'No messages yet.'}
+Aktuelles Protokoll:
+${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}
 
-Deliver your final verdict statement to the council.`
+Gib dein Abschlussurteil an den Rat ab.`
                   })
 
                   finalStatements.push({
@@ -260,17 +261,17 @@ Deliver your final verdict statement to the council.`
                     .join('\n')
 
                   const { text: voteSelection } = await generateText({
-                    model: defaultModel,
-                    system: `You are ${member.name}, ${member.title}.
-Select one proposal to support and return only:
+                    model: await getModel(),
+                    system: `Du bist ${member.name}, ${member.title}.
+Wähle einen Vorschlag zur Unterstützung und antworte ausschließlich mit:
 VOTE_FOR_MEMBER_ID: <member id>
-Rules:
-- Choose one valid candidate id from the list.
-- Do not vote for yourself.
-- Output exactly one line.`,
-                    prompt: `Meeting topic: ${meeting.topic}
+Regeln:
+- Wähle eine gültige Kandidaten-ID aus der Liste.
+- Stimme nicht für dich selbst.
+- Gib genau eine Zeile aus.`,
+                    prompt: `Sitzungsthema: ${meeting.topic}
 
-Candidates:
+Kandidaten:
 ${candidateLines}`
                   })
 
@@ -287,26 +288,27 @@ ${candidateLines}`
 
                   const reasonText = await streamAgentMessage({
                     member,
-                    system: `You are ${member.name}, ${member.title}, in the final voting stage.
-Personality: ${member.personality}
-Objective: ${member.objective}
+                    system: `Du bist ${member.name}, ${member.title}, in der finalen Abstimmungsphase.
+Persönlichkeit: ${member.personality}
+Ziel: ${member.objective}
 
-Rules:
-- You are voting for ${votedFor.memberName}.
-- Explain why in 1-2 sentences.
-- Start with "I vote for ${votedFor.memberName} because"
-- Explicitly reference one strength from that member's final verdict.
-- Do not use markdown headings or bullet points.`,
-                    prompt: `Meeting topic: ${meeting.topic}
+Regeln:
+- Du stimmst für ${votedFor.memberName}.
+- Erkläre warum in 1-2 Sätzen.
+- Beginne mit "Ich stimme für ${votedFor.memberName}, weil"
+- Beziehe dich ausdrücklich auf eine Stärke aus dem Abschlussurteil dieses Mitglieds.
+- Verwende keine Markdown-Überschriften oder Aufzählungszeichen.
+- Antworte auf Deutsch.`,
+                    prompt: `Sitzungsthema: ${meeting.topic}
 
-Your final proposal:
+Dein eigener Vorschlag:
 ${finalStatements.find(statement => statement.memberId === member.id)?.statement || 'N/A'}
 
-Selected proposal:
+Gewählter Vorschlag:
 ${votedFor.statement}
 
-Recent transcript:
-${transcriptText(transcriptMessages) || 'No messages yet.'}`
+Aktuelles Protokoll:
+${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
                   })
 
                   voteExplanations.push({
@@ -345,7 +347,7 @@ ${transcriptText(transcriptMessages) || 'No messages yet.'}`
                   .map(vote => `${vote.memberName} -> ${vote.votedForMemberName}: ${vote.reason}`)
                   .join('\n')
                 const verdictText
-                  = `Council conclusion: ${verdict.summary}\nWinning idea: ${verdict.winningIdea}\nVote: ${verdict.voteResult}\n\nFinal statements:\n${finalStatementText}\n\nVote explanations:\n${voteExplanationText}`
+                  = `Ratsschluss: ${verdict.summary}\nGewinneridee: ${verdict.winningIdea}\nAbstimmung: ${verdict.voteResult}\n\nAbschlussurteile:\n${finalStatementText}\n\nAbstimmungserklärungen:\n${voteExplanationText}`
 
                 await db.insert(schema.councilMessages).values({
                   meetingId: meeting.id,
@@ -419,24 +421,25 @@ ${transcriptText(transcriptMessages) || 'No messages yet.'}`
                 = message.role === 'agent'
                   ? message.member?.name || 'Agent'
                   : message.role === 'user'
-                    ? 'User'
+                    ? 'Nutzer'
                     : 'System'
               return `${author}: ${message.content}`
             })
             .join('\n')
 
           const result = streamText({
-            model: defaultModel,
-            system: `You are ${speaker.name}, ${speaker.title}, in an AI council.
-Personality: ${speaker.personality}
-Objective: ${speaker.objective}
+            model: await getModel(),
+            system: `Du bist ${speaker.name}, ${speaker.title}, in einem KI-Rat.
+Persönlichkeit: ${speaker.personality}
+Ziel: ${speaker.objective}
 
-Rules:
-- Keep your response to 1-2 sentences.
-- Be concrete and collaborative.
-- If relevant, react to the latest speaker.
-- Do not use markdown headings or bullet points.`,
-            prompt: `Recent transcript:\n${transcript || 'No messages yet.'}\n\nMeeting topic: ${meeting.topic}\nContribute one concise turn that advances the conversation.`
+Regeln:
+- Halte deine Antwort auf 1-2 Sätze.
+- Sei konkret und kooperativ.
+- Reagiere wenn möglich auf den letzten Sprecher.
+- Verwende keine Markdown-Überschriften oder Aufzählungszeichen.
+- Antworte auf Deutsch.`,
+            prompt: `Aktuelles Protokoll:\n${transcript || 'Noch keine Nachrichten.'}\n\nSitzungsthema: ${meeting.topic}\nLeiste einen prägnanten Beitrag, der das Gespräch voranbringt.`
           })
 
           let content = ''

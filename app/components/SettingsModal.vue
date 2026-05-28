@@ -15,6 +15,8 @@ const form = reactive({
   modelName: "",
 });
 
+const apiKey = ref("");
+
 const modelNamePlaceholder = computed(() =>
   form.provider === "openai" ? "gpt-4o-mini" : "qwen/qwen3-4b-2507",
 );
@@ -32,8 +34,15 @@ watch(
   { immediate: true },
 );
 
+onMounted(() => {
+  apiKey.value = localStorage.getItem("openai-api-key") ?? "";
+});
+
 watch(open, (val) => {
-  if (val) refresh();
+  if (val) {
+    refresh();
+    apiKey.value = localStorage.getItem("openai-api-key") ?? "";
+  }
 });
 
 watch(
@@ -57,6 +66,11 @@ async function save() {
         modelName: form.modelName,
       },
     });
+    if (apiKey.value.trim()) {
+      localStorage.setItem("openai-api-key", apiKey.value.trim());
+    } else {
+      localStorage.removeItem("openai-api-key");
+    }
     toast.add({ color: "success", description: "Einstellungen gespeichert." });
     open.value = false;
   } catch {
@@ -87,6 +101,19 @@ async function save() {
             :items="providerOptions"
             value-key="value"
             class="w-full"
+          />
+        </UFormField>
+
+        <UFormField
+          v-if="form.provider === 'openai'"
+          label="OpenAI API Key"
+          description="Wird nur lokal im Browser gespeichert"
+        >
+          <UInput
+            v-model="apiKey"
+            type="password"
+            placeholder="sk-..."
+            class="w-full font-mono"
           />
         </UFormField>
 

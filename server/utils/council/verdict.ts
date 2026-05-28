@@ -61,7 +61,8 @@ export async function generateVerdict(
   topic: string,
   transcript: string,
   finalStatements: CouncilVerdictStatement[],
-  voteExplanations: CouncilVoteExplanation[]
+  voteExplanations: CouncilVoteExplanation[],
+  apiKey?: string
 ) {
   const statementSummary = finalStatements
     .map(statement => `${statement.memberName}: ${statement.statement}`)
@@ -71,7 +72,7 @@ export async function generateVerdict(
     .join('\n')
 
   const { text } = await generateText({
-    model: await getModel(),
+    model: await getModel(apiKey),
     system: `Du bist ein neutraler Ratsmoderator.
 Erstelle eine prägnante Abschlusszusammenfassung und identifiziere die Gewinneridee.
 Antworte auf Deutsch in genau diesem Format:

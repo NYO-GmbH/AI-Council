@@ -29,6 +29,7 @@ const err = (...args: unknown[]) => console.error('[tick]', ...args)
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const { userMessage } = await readValidatedBody(event, bodySchema.parse)
+  const apiKey = getRequestHeader(event, 'x-openai-api-key') || undefined
 
   log(`▶ meeting=${id} userMessage=${userMessage ?? '(none)'}`)
 
@@ -98,7 +99,7 @@ export default defineEventHandler(async (event) => {
               }
             })
 
-            const model = await getModel()
+            const model = await getModel(apiKey)
             log(`  streamText starting for ${params.member.name}`)
             const result = streamText({
               model,
@@ -300,7 +301,7 @@ Gib dein Abschlussurteil an den Rat ab.`
 
                   log(`  generateText vote selection for ${member.name}`)
                   const { text: voteSelection } = await generateText({
-                    model: await getModel(),
+                    model: await getModel(apiKey),
                     system: `Du bist ${member.name}, ${member.title}.
 Wähle einen Vorschlag zur Unterstützung und antworte ausschließlich mit:
 VOTE_FOR_MEMBER_ID: <member id>
@@ -379,7 +380,8 @@ ${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
                   meeting.topic,
                   fullTranscript,
                   finalStatements,
-                  voteExplanations
+                  voteExplanations,
+                  apiKey
                 )
                 log(`  verdict generated: winningIdea="${verdict.winningIdea}"`)
 
@@ -465,7 +467,7 @@ ${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
             })
             .join('\n')
 
-          const model = await getModel()
+          const model = await getModel(apiKey)
           log(`  streamText starting for ${speaker.name} (discussion)`)
           const result = streamText({
             model,

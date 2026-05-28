@@ -158,12 +158,17 @@ export function useCouncilMeeting() {
       const payload = userMessage?.trim()
         ? { userMessage: userMessage.trim() }
         : {};
+      const apiKey =
+        typeof localStorage !== "undefined"
+          ? (localStorage.getItem("openai-api-key") ?? "")
+          : "";
       const response = await fetch(
         `/api/council/meetings/${selectedMeetingId.value}/tick`,
         {
           method: "POST",
           headers: {
             "content-type": "application/json",
+            ...(apiKey ? { "x-openai-api-key": apiKey } : {}),
           },
           body: JSON.stringify(payload),
           signal: abortController.signal,

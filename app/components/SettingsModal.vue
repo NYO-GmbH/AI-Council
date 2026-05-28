@@ -3,6 +3,7 @@ const open = defineModel<boolean>("open", { default: false });
 
 const toast = useToast();
 const saving = ref(false);
+const settingsSaved = useSettingsSaved();
 
 const providerOptions = [
   { label: "LM Studio", value: "lmstudio" },
@@ -71,6 +72,7 @@ async function save() {
     } else {
       localStorage.removeItem("openai-api-key");
     }
+    settingsSaved.value = Date.now();
     toast.add({ color: "success", description: "Einstellungen gespeichert." });
     open.value = false;
   } catch {

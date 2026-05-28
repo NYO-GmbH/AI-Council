@@ -30,6 +30,24 @@ const {
 const hoveredMemberId = ref<string>();
 const createMeetingOpen = ref(false);
 
+const { data: settings, refresh: refreshSettings } = useFetch("/api/settings");
+const localApiKey = ref("");
+onMounted(() => {
+  localApiKey.value = localStorage.getItem("openai-api-key") ?? "";
+});
+const needsApiKey = computed(
+  () =>
+    settings.value?.provider === "openai" &&
+    !localApiKey.value &&
+    !settings.value?.hasEnvApiKey,
+);
+
+const settingsSaved = useSettingsSaved();
+watch(settingsSaved, () => {
+  refreshSettings();
+  localApiKey.value = localStorage.getItem("openai-api-key") ?? "";
+});
+
 async function handleStartMeeting() {
   await startMeeting();
   createMeetingOpen.value = false;
@@ -58,6 +76,7 @@ async function handleStartMeeting() {
           <UButton
             icon="i-lucide-plus"
             color="primary"
+            :disabled="needsApiKey"
             @click="createMeetingOpen = true"
           >
             Neue Sitzung
@@ -76,6 +95,13 @@ async function handleStartMeeting() {
 
     <UPageBody>
       <div class="space-y-4">
+        <UAlert
+          v-if="needsApiKey"
+          color="warning"
+          icon="i-lucide-key-round"
+          title="OpenAI API-Key fehlt"
+          description="Bitte trage deinen OpenAI API-Key in den Einstellungen ein, um eine Sitzung zu starten."
+        />
         <div
           class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_24rem] xl:items-start"
         >
@@ -152,6 +178,7 @@ async function handleStartMeeting() {
                 <UButton
                   type="submit"
                   :loading="creating"
+                  :disabled="needsApiKey"
                   icon="i-lucide-play"
                   block
                 >

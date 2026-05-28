@@ -5,5 +5,6 @@ export default defineEventHandler(async () => {
   return {
     ...settings,
     defaults: SETTINGS_DEFAULTS,
+    hasEnvApiKey: !!process.env.OPENAI_API_KEY,
   }
 })

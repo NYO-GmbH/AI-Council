@@ -1,5 +1,5 @@
 import { generateText } from 'ai'
-import { getModel } from '../lmstudio'
+import { getModel } from '../model'
 import { clipText } from './text'
 
 export interface VerdictMemberInput {

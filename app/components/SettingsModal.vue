@@ -1,52 +1,97 @@
 <script setup lang="ts">
-const open = defineModel<boolean>('open', { default: false })
+const open = defineModel<boolean>("open", { default: false });
 
-const toast = useToast()
-const saving = ref(false)
+const toast = useToast();
+const saving = ref(false);
+
+const providerOptions = [
+  { label: "LM Studio", value: "lmstudio" },
+  { label: "OpenAI", value: "openai" },
+];
 
 const form = reactive({
-  baseUrl: '',
-  modelName: '',
-})
+  provider: "lmstudio" as "lmstudio" | "openai",
+  baseUrl: "",
+  modelName: "",
+});
 
-const { data: settings, refresh } = await useFetch('/api/settings')
+const modelNamePlaceholder = computed(() =>
+  form.provider === "openai" ? "gpt-4o-mini" : "qwen/qwen3-4b-2507",
+);
+
+const { data: settings, refresh } = await useFetch("/api/settings");
 
 watch(
   settings,
   (s) => {
-    if (!s) return
-    form.baseUrl = s.baseUrl
-    form.modelName = s.modelName
+    if (!s) return;
+    form.provider = s.provider as "lmstudio" | "openai";
+    form.baseUrl = s.baseUrl;
+    form.modelName = s.modelName;
   },
   { immediate: true },
-)
+);
 
 watch(open, (val) => {
-  if (val) refresh()
-})
+  if (val) refresh();
+});
+
+watch(
+  () => form.provider,
+  (provider) => {
+    form.modelName =
+      provider === "openai"
+        ? "gpt-4o-mini"
+        : (settings.value?.defaults?.modelName ?? "qwen/qwen3-4b-2507");
+  },
+);
 
 async function save() {
-  saving.value = true
+  saving.value = true;
   try {
-    await $fetch('/api/settings', {
-      method: 'PATCH',
-      body: { baseUrl: form.baseUrl, modelName: form.modelName },
-    })
-    toast.add({ color: 'success', description: 'Einstellungen gespeichert.' })
-    open.value = false
+    await $fetch("/api/settings", {
+      method: "PATCH",
+      body: {
+        provider: form.provider,
+        baseUrl: form.baseUrl,
+        modelName: form.modelName,
+      },
+    });
+    toast.add({ color: "success", description: "Einstellungen gespeichert." });
+    open.value = false;
   } catch {
-    toast.add({ color: 'error', description: 'Einstellungen konnten nicht gespeichert werden.' })
+    toast.add({
+      color: "error",
+      description: "Einstellungen konnten nicht gespeichert werden.",
+    });
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
 </script>
 
 <template>
-  <UModal v-model:open="open" title="Einstellungen" description="LM Studio Verbindung konfigurieren">
+  <UModal
+    v-model:open="open"
+    title="Einstellungen"
+    description="KI-Anbieter konfigurieren"
+  >
     <template #body>
       <UForm :state="form" class="space-y-4" @submit="save">
         <UFormField
+          label="Anbieter"
+          description="KI-Anbieter für die Ratssitzung"
+        >
+          <USelect
+            v-model="form.provider"
+            :items="providerOptions"
+            value-key="value"
+            class="w-full"
+          />
+        </UFormField>
+
+        <UFormField
+          v-if="form.provider === 'lmstudio'"
           label="LM Studio URL"
           :hint="settings?.defaults?.baseUrl"
           description="Basis-URL des LM Studio API-Servers"
@@ -60,12 +105,20 @@ async function save() {
 
         <UFormField
           label="Modellname"
-          :hint="settings?.defaults?.modelName"
-          description="Modell-ID, wie in LM Studio geladen"
+          :hint="
+            form.provider === 'openai'
+              ? 'gpt-4o-mini'
+              : settings?.defaults?.modelName
+          "
+          :description="
+            form.provider === 'openai'
+              ? 'OpenAI Modell-ID'
+              : 'Modell-ID, wie in LM Studio geladen'
+          "
         >
           <UInput
             v-model="form.modelName"
-            placeholder="qwen/qwen3-4b-2507"
+            :placeholder="modelNamePlaceholder"
             class="w-full font-mono"
           />
         </UFormField>

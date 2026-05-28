@@ -3,119 +3,123 @@ import type {
   CouncilMeeting,
   CouncilMember,
   CouncilMessage,
-  TickStreamEvent
-} from './council/types'
+  TickStreamEvent,
+} from "./council/types";
 
 export function useCouncilMeeting() {
-  const toast = useToast()
+  const toast = useToast();
 
-  const selectedMeetingId = ref<string>()
-  const meeting = ref<CouncilMeeting | null>(null)
-  const topic = ref('Plan our next product sprint with clear owner decisions.')
-  const userNudge = ref('')
-  const creating = ref(false)
-  const ticking = ref(false)
-  const stopping = ref(false)
-  const deleting = ref(false)
-  const rounds = ref(2)
-  const verdictOpen = ref(false)
-  const shouldAutoTick = ref(false)
-  const finalStreamSpeaker = ref<CouncilMember | null>(null)
-  const finalStreamContent = ref('')
-  const finalStreamEntries = ref<FinalPhaseStreamEntry[]>([])
+  const selectedMeetingId = ref<string>();
+  const meeting = ref<CouncilMeeting | null>(null);
+  const topic = ref(
+    "Plane unser nächsten Produkt-Sprint mit klaren Eigentümerentscheidungen.",
+  );
+  const userNudge = ref("");
+  const creating = ref(false);
+  const ticking = ref(false);
+  const stopping = ref(false);
+  const deleting = ref(false);
+  const rounds = ref(2);
+  const verdictOpen = ref(false);
+  const shouldAutoTick = ref(false);
+  const tickAbortController = ref<AbortController | null>(null);
+  const finalStreamSpeaker = ref<CouncilMember | null>(null);
+  const finalStreamContent = ref("");
+  const finalStreamEntries = ref<FinalPhaseStreamEntry[]>([]);
 
-  const { data: members } = useFetch<CouncilMember[]>(
-    '/api/council/members',
-    {
-      default: () => []
-    }
-  )
+  const { data: members } = useFetch<CouncilMember[]>("/api/council/members", {
+    default: () => [],
+  });
 
   const { data: meetings, refresh: refreshMeetings } = useFetch<
     CouncilMeeting[]
-  >('/api/council/meetings', {
-    default: () => []
-  })
+  >("/api/council/meetings", {
+    default: () => [],
+  });
 
   const meetingOptions = computed(() =>
-    (meetings.value || []).map(item => ({
+    (meetings.value || []).map((item) => ({
       label: item.topic,
-      value: item.id
-    }))
-  )
+      value: item.id,
+    })),
+  );
 
   const roomMembers = computed(
-    () => members.value?.filter(member => member.isActive) || []
-  )
-  const transcript = computed(() => meeting.value?.messages || [])
-  const meetingPhase = computed(() => meeting.value?.state?.phase || 'discussion')
-  const isFinalPhase = computed(() =>
-    meetingPhase.value === 'final_verdicts' || meetingPhase.value === 'voting'
-  )
+    () => members.value?.filter((member) => member.isActive) || [],
+  );
+  const transcript = computed(() => meeting.value?.messages || []);
+  const meetingPhase = computed(
+    () => meeting.value?.state?.phase || "discussion",
+  );
+  const isFinalPhase = computed(
+    () =>
+      meetingPhase.value === "final_verdicts" ||
+      meetingPhase.value === "voting",
+  );
   const activeSpeaker = computed(() =>
     isFinalPhase.value
-      ? (finalStreamSpeaker.value
-          ? { member: finalStreamSpeaker.value }
-          : undefined)
-      : meeting.value?.status === 'active'
-      ? [...transcript.value]
-          .reverse()
-          .find(message => message.role === 'agent')
-      : undefined
-  )
-  const hasActiveMeeting = computed(() => meeting.value?.status === 'active')
+      ? finalStreamSpeaker.value
+        ? { member: finalStreamSpeaker.value }
+        : undefined
+      : meeting.value?.status === "active"
+        ? [...transcript.value]
+            .reverse()
+            .find((message) => message.role === "agent")
+        : undefined,
+  );
+  const hasActiveMeeting = computed(() => meeting.value?.status === "active");
   const roundLabel = computed(() => {
     if (!meeting.value?.state) {
-      return 'Round 0/0'
+      return "Round 0/0";
     }
-    if (meeting.value.state.phase === 'final_verdicts') {
-      return 'Final Verdicts'
+    if (meeting.value.state.phase === "final_verdicts") {
+      return "Final Verdicts";
     }
-    if (meeting.value.state.phase === 'voting') {
-      return 'Final Voting'
+    if (meeting.value.state.phase === "voting") {
+      return "Final Voting";
     }
-    if (meeting.value.state.phase === 'completed') {
-      return 'Completed'
+    if (meeting.value.state.phase === "completed") {
+      return "Completed";
     }
-    return `Round ${meeting.value.state.rounds}/${meeting.value.state.maxRounds}`
-  })
-  const verdict = computed(() => meeting.value?.state?.verdict)
+    return `Round ${meeting.value.state.rounds}/${meeting.value.state.maxRounds}`;
+  });
+  const verdict = computed(() => meeting.value?.state?.verdict);
 
   async function loadMeeting(id: string) {
-    meeting.value = await $fetch(`/api/council/meetings/${id}`)
+    meeting.value = await $fetch(`/api/council/meetings/${id}`);
   }
 
   function upsertStreamingMessage(
     content: string,
-    member: CouncilMember | null
+    member: CouncilMember | null,
   ) {
     if (!meeting.value) {
-      return
+      return;
     }
-    const streamId = '__streaming__'
+    const streamId = "__streaming__";
     if (!meeting.value.messages) {
-      meeting.value.messages = []
+      meeting.value.messages = [];
     }
     const existingIndex = meeting.value.messages.findIndex(
-      message => message.id === streamId
-    )
+      (message) => message.id === streamId,
+    );
     const streamingMessage: CouncilMessage = {
       id: streamId,
-      role: 'agent',
+      role: "agent",
       content,
       createdAt: new Date().toISOString(),
-      member
-    }
+      member,
+    };
 
     if (existingIndex === -1) {
-      meeting.value.messages.push(streamingMessage)
-      return
+      meeting.value.messages.push(streamingMessage);
+      return;
     }
 
-    const existingMessage = meeting.value.messages[existingIndex]
+    const existingMessage = meeting.value.messages[existingIndex];
     if (!existingMessage) {
-      meeting.value.messages.push(streamingMessage)
-      return
+      meeting.value.messages.push(streamingMessage);
+      return;
     }
 
     meeting.value.messages.splice(existingIndex, 1, {
@@ -123,296 +127,313 @@ export function useCouncilMeeting() {
       role: existingMessage.role,
       content,
       createdAt: existingMessage.createdAt,
-      member
-    })
+      member,
+    });
   }
 
   function removeStreamingMessage() {
     if (!meeting.value?.messages) {
-      return
+      return;
     }
     meeting.value.messages = meeting.value.messages.filter(
-      message => message.id !== '__streaming__'
-    )
+      (message) => message.id !== "__streaming__",
+    );
   }
 
   function resetFinalStream() {
-    finalStreamSpeaker.value = null
-    finalStreamContent.value = ''
-    finalStreamEntries.value = []
+    finalStreamSpeaker.value = null;
+    finalStreamContent.value = "";
+    finalStreamEntries.value = [];
   }
 
   async function tickCouncil(userMessage?: string) {
     if (!selectedMeetingId.value || ticking.value || !hasActiveMeeting.value) {
-      return
+      return;
     }
-    ticking.value = true
+    ticking.value = true;
+    let succeeded = false;
+    const abortController = new AbortController();
+    tickAbortController.value = abortController;
     try {
       const payload = userMessage?.trim()
         ? { userMessage: userMessage.trim() }
-        : {}
+        : {};
       const response = await fetch(
         `/api/council/meetings/${selectedMeetingId.value}/tick`,
         {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'content-type': 'application/json'
+            "content-type": "application/json",
           },
-          body: JSON.stringify(payload)
-        }
-      )
+          body: JSON.stringify(payload),
+          signal: abortController.signal,
+        },
+      );
       if (!response.ok) {
-        const failure = await response.text()
-        let message = 'Failed to progress meeting.'
+        const failure = await response.text();
+        let message = "Failed to progress meeting.";
         if (failure) {
           try {
-            const parsed = JSON.parse(failure) as { statusMessage?: string }
-            message = parsed.statusMessage || message
+            const parsed = JSON.parse(failure) as { statusMessage?: string };
+            message = parsed.statusMessage || message;
           } catch {
-            message = failure
+            message = failure;
           }
         }
-        throw new Error(message)
+        throw new Error(message);
       }
 
       if (!response.body) {
-        await loadMeeting(selectedMeetingId.value)
-        await refreshMeetings()
-        return
+        await loadMeeting(selectedMeetingId.value);
+        await refreshMeetings();
+        return;
       }
 
-      const reader = response.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let streamMember: CouncilMember | null = null
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let streamMember: CouncilMember | null = null;
 
       const consumeEvent = (line: string) => {
         if (!line.trim()) {
-          return
+          return;
         }
-        const event = JSON.parse(line) as TickStreamEvent
-        if (event.type === 'speaker') {
+        const event = JSON.parse(line) as TickStreamEvent;
+        if (event.type === "speaker") {
           streamMember = {
             ...event.member,
-            isActive: true
-          }
+            isActive: true,
+          };
           if (isFinalPhase.value) {
-            finalStreamSpeaker.value = streamMember
-            finalStreamContent.value = ''
-            return
+            finalStreamSpeaker.value = streamMember;
+            finalStreamContent.value = "";
+            return;
           }
-          upsertStreamingMessage('', streamMember)
-          return
+          upsertStreamingMessage("", streamMember);
+          return;
         }
-        if (event.type === 'message_content') {
+        if (event.type === "message_content") {
           if (isFinalPhase.value) {
-            finalStreamContent.value = event.content
-            return
+            finalStreamContent.value = event.content;
+            return;
           }
-          upsertStreamingMessage(event.content, streamMember)
-          return
+          upsertStreamingMessage(event.content, streamMember);
+          return;
         }
-        if (event.type === 'message') {
+        if (event.type === "message") {
           if (!isFinalPhase.value) {
-            removeStreamingMessage()
+            removeStreamingMessage();
           }
           if (!meeting.value) {
-            return
+            return;
           }
           if (!meeting.value.messages) {
-            meeting.value.messages = []
+            meeting.value.messages = [];
           }
-          meeting.value.messages.push(event.message)
+          meeting.value.messages.push(event.message);
           if (
-            isFinalPhase.value
-            && event.message.member
-            && (meetingPhase.value === 'final_verdicts' || meetingPhase.value === 'voting')
+            isFinalPhase.value &&
+            event.message.member &&
+            (meetingPhase.value === "final_verdicts" ||
+              meetingPhase.value === "voting")
           ) {
             finalStreamEntries.value.push({
               id: event.message.id,
               phase: meetingPhase.value,
               content: event.message.content,
               createdAt: event.message.createdAt,
-              member: event.message.member
-            })
-            finalStreamSpeaker.value = null
-            finalStreamContent.value = ''
+              member: event.message.member,
+            });
+            finalStreamSpeaker.value = null;
+            finalStreamContent.value = "";
           }
-          return
+          return;
         }
-        if (event.type === 'phase' && meeting.value) {
+        if (event.type === "phase" && meeting.value) {
           meeting.value.state = {
             ...meeting.value.state,
-            phase: event.phase
+            phase: event.phase,
+          };
+          if (event.phase === "final_verdicts") {
+            resetFinalStream();
+            verdictOpen.value = true;
           }
-          if (event.phase === 'final_verdicts') {
-            resetFinalStream()
-            verdictOpen.value = true
+          if (event.phase === "completed") {
+            finalStreamSpeaker.value = null;
+            finalStreamContent.value = "";
           }
-          if (event.phase === 'completed') {
-            finalStreamSpeaker.value = null
-            finalStreamContent.value = ''
-          }
-          return
+          return;
         }
         if (
-          event.type === 'status'
-          && event.status === 'completed'
-          && meeting.value
+          event.type === "status" &&
+          event.status === "completed" &&
+          meeting.value
         ) {
-          meeting.value.status = 'completed'
+          meeting.value.status = "completed";
           meeting.value.state = {
             ...meeting.value.state,
-            phase: 'completed'
-          }
+            phase: "completed",
+          };
         }
-        if (event.type === 'error') {
-          throw new Error(event.message)
+        if (event.type === "error") {
+          throw new Error(event.message);
         }
-      }
+      };
 
       while (true) {
-        const { value, done } = await reader.read()
+        const { value, done } = await reader.read();
         if (done) {
-          break
+          break;
         }
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
         for (const line of lines) {
-          consumeEvent(line)
+          consumeEvent(line);
         }
       }
-      const tail = buffer.trim()
+      const tail = buffer.trim();
       if (tail) {
-        consumeEvent(tail)
+        consumeEvent(tail);
       }
-      removeStreamingMessage()
+      removeStreamingMessage();
       if (!isFinalPhase.value) {
-        finalStreamSpeaker.value = null
-        finalStreamContent.value = ''
+        finalStreamSpeaker.value = null;
+        finalStreamContent.value = "";
       }
-      await loadMeeting(selectedMeetingId.value)
-      await refreshMeetings()
+      await loadMeeting(selectedMeetingId.value);
+      await refreshMeetings();
+      succeeded = true;
     } catch (error: unknown) {
-      removeStreamingMessage()
-      const err = error as {
-        data?: { statusMessage?: string }
-        message?: string
+      removeStreamingMessage();
+      if (error instanceof Error && error.name === "AbortError") {
+        // intentional stop — swallow silently
+      } else {
+        shouldAutoTick.value = false;
+        const err = error as {
+          data?: { statusMessage?: string };
+          message?: string;
+        };
+        toast.add({
+          color: "error",
+          icon: "i-lucide-alert-circle",
+          description:
+            err?.data?.statusMessage ||
+            err?.message ||
+            "Failed to progress meeting.",
+        });
       }
-      toast.add({
-        color: 'error',
-        icon: 'i-lucide-alert-circle',
-        description:
-          err?.data?.statusMessage
-          || err?.message
-          || 'Failed to progress meeting.'
-      })
     } finally {
-      ticking.value = false
+      tickAbortController.value = null;
+      ticking.value = false;
       if (
-        shouldAutoTick.value
-        && selectedMeetingId.value
-        && hasActiveMeeting.value
+        succeeded &&
+        shouldAutoTick.value &&
+        selectedMeetingId.value &&
+        hasActiveMeeting.value
       ) {
-        void tickCouncil()
+        void tickCouncil();
       }
     }
   }
 
   async function startMeeting() {
     if (!topic.value.trim()) {
-      return
+      return;
     }
-    creating.value = true
+    shouldAutoTick.value = true;
+    creating.value = true;
     try {
-      const created = await $fetch<CouncilMeeting>('/api/council/meetings', {
-        method: 'POST',
+      const created = await $fetch<CouncilMeeting>("/api/council/meetings", {
+        method: "POST",
         body: {
           topic: topic.value,
-          rounds: rounds.value
-        }
-      })
-      await refreshMeetings()
-      selectedMeetingId.value = created.id
-      await loadMeeting(created.id)
-      await tickCouncil()
+          rounds: rounds.value,
+        },
+      });
+      await refreshMeetings();
+      selectedMeetingId.value = created.id;
+      await loadMeeting(created.id);
+      await tickCouncil();
     } finally {
-      creating.value = false
+      creating.value = false;
     }
   }
 
   async function sendNudge() {
     if (!userNudge.value.trim()) {
-      return
+      return;
     }
-    const nudge = userNudge.value
-    userNudge.value = ''
-    await tickCouncil(nudge)
+    const nudge = userNudge.value;
+    userNudge.value = "";
+    await tickCouncil(nudge);
   }
 
   async function stopMeeting() {
     if (!selectedMeetingId.value) {
-      return
+      return;
     }
-    stopping.value = true
+    shouldAutoTick.value = false;
+    tickAbortController.value?.abort();
+    tickAbortController.value = null;
+    stopping.value = true;
     try {
       await $fetch(`/api/council/meetings/${selectedMeetingId.value}/stop`, {
-        method: 'POST'
-      })
-      await loadMeeting(selectedMeetingId.value)
-      await refreshMeetings()
+        method: "POST",
+      });
+      await loadMeeting(selectedMeetingId.value);
+      await refreshMeetings();
     } finally {
-      stopping.value = false
+      stopping.value = false;
     }
   }
 
   async function deleteMeeting() {
     if (!selectedMeetingId.value || deleting.value) {
-      return
+      return;
     }
 
-    const targetId = selectedMeetingId.value
+    const targetId = selectedMeetingId.value;
 
-    deleting.value = true
+    deleting.value = true;
     try {
       await $fetch(`/api/council/meetings/${targetId}`, {
-        method: 'DELETE'
-      })
+        method: "DELETE",
+      });
 
-      await refreshMeetings()
-      const updatedMeetings = meetings.value || []
-      const next
-        = updatedMeetings.find(item => item.status === 'active')
-          || updatedMeetings[0]
+      await refreshMeetings();
+      const updatedMeetings = meetings.value || [];
+      const next =
+        updatedMeetings.find((item) => item.status === "active") ||
+        updatedMeetings[0];
 
-      selectedMeetingId.value = next?.id
+      selectedMeetingId.value = next?.id;
       if (next?.id) {
-        await loadMeeting(next.id)
+        await loadMeeting(next.id);
       } else {
-        meeting.value = null
+        meeting.value = null;
       }
 
       toast.add({
-        color: 'success',
-        icon: 'i-lucide-trash-2',
-        description: 'Meeting deleted.'
-      })
+        color: "success",
+        icon: "i-lucide-trash-2",
+        description: "Meeting deleted.",
+      });
     } catch (error: unknown) {
       const err = error as {
-        data?: { statusMessage?: string }
-        message?: string
-      }
+        data?: { statusMessage?: string };
+        message?: string;
+      };
       toast.add({
-        color: 'error',
-        icon: 'i-lucide-alert-circle',
+        color: "error",
+        icon: "i-lucide-alert-circle",
         description:
-          err?.data?.statusMessage
-          || err?.message
-          || 'Failed to delete meeting.'
-      })
+          err?.data?.statusMessage ||
+          err?.message ||
+          "Failed to delete meeting.",
+      });
     } finally {
-      deleting.value = false
+      deleting.value = false;
     }
   }
 
@@ -420,64 +441,64 @@ export function useCouncilMeeting() {
     meetings,
     async (value) => {
       if (!value?.length) {
-        selectedMeetingId.value = undefined
-        meeting.value = null
-        return
+        selectedMeetingId.value = undefined;
+        meeting.value = null;
+        return;
       }
       if (!selectedMeetingId.value) {
-        const preferred
-          = value.find(item => item.status === 'active') || value[0]
-        selectedMeetingId.value = preferred?.id
+        const preferred =
+          value.find((item) => item.status === "active") || value[0];
+        selectedMeetingId.value = preferred?.id;
         if (preferred?.id) {
-          await loadMeeting(preferred.id)
+          await loadMeeting(preferred.id);
         }
       }
     },
-    { immediate: true }
-  )
+    { immediate: true },
+  );
 
   watch(selectedMeetingId, async (id) => {
     if (id) {
-      await loadMeeting(id)
-      resetFinalStream()
+      await loadMeeting(id);
+      resetFinalStream();
     } else {
-      meeting.value = null
-      resetFinalStream()
+      meeting.value = null;
+      resetFinalStream();
     }
-  })
+  });
 
   watch(hasActiveMeeting, (active) => {
     if (
-      active
-      && shouldAutoTick.value
-      && selectedMeetingId.value
-      && !ticking.value
+      active &&
+      shouldAutoTick.value &&
+      selectedMeetingId.value &&
+      !ticking.value
     ) {
-      void tickCouncil()
+      void tickCouncil();
     }
-  })
+  });
 
-  const isInitialVerdictWatch = ref(true)
+  const isInitialVerdictWatch = ref(true);
   watch(verdict, (value, previous) => {
     if (isInitialVerdictWatch.value) {
-      isInitialVerdictWatch.value = false
-      return
+      isInitialVerdictWatch.value = false;
+      return;
     }
     if (value && !previous) {
-      verdictOpen.value = true
+      verdictOpen.value = true;
     }
-  })
+  });
 
   onMounted(() => {
-    shouldAutoTick.value = true
+    shouldAutoTick.value = true;
     if (hasActiveMeeting.value && selectedMeetingId.value) {
-      void tickCouncil()
+      void tickCouncil();
     }
-  })
+  });
 
   onUnmounted(() => {
-    shouldAutoTick.value = false
-  })
+    shouldAutoTick.value = false;
+  });
 
   return {
     selectedMeetingId,
@@ -504,6 +525,6 @@ export function useCouncilMeeting() {
     startMeeting,
     sendNudge,
     stopMeeting,
-    deleteMeeting
-  }
+    deleteMeeting,
+  };
 }

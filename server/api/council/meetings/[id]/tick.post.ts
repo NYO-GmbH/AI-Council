@@ -1,7 +1,7 @@
 import { generateText, streamText } from 'ai'
 import { eq } from 'drizzle-orm'
 import { db, schema } from '~~/server/db'
-import { getModel } from '~~/server/utils/lmstudio'
+import { getModel } from '~~/server/utils/model'
 import {
   getActiveCouncilMembersOrThrow,
   getMeetingWithMessagesOrThrow
@@ -23,13 +23,20 @@ const bodySchema = z.object({
   userMessage: z.string().min(1).max(400).optional()
 })
 
+const log = (...args: unknown[]) => console.log('[tick]', ...args)
+const err = (...args: unknown[]) => console.error('[tick]', ...args)
+
 export default defineEventHandler(async (event) => {
   const { id } = getRouterParams(event)
   const { userMessage } = await readValidatedBody(event, bodySchema.parse)
 
+  log(`▶ meeting=${id} userMessage=${userMessage ?? '(none)'}`)
+
   const meeting = await getMeetingWithMessagesOrThrow(id as string)
+  log(`  status=${meeting.status} phase=${meeting.state?.phase} rounds=${meeting.state?.rounds}/${meeting.state?.maxRounds} queue=[${(meeting.state?.queue ?? []).join(', ')}]`)
 
   if (meeting.status === 'completed') {
+    log('  → already completed, returning status event')
     return toSingleEventResponse({
       type: 'status',
       status: 'completed',
@@ -38,6 +45,7 @@ export default defineEventHandler(async (event) => {
   }
 
   if (meeting.status === 'paused') {
+    log('  → paused, returning status event')
     return toSingleEventResponse({
       type: 'status',
       status: 'paused'
@@ -47,6 +55,7 @@ export default defineEventHandler(async (event) => {
   const activeMembers = await getActiveCouncilMembersOrThrow(
     'No active council members available.'
   )
+  log(`  activeMembers=[${activeMembers.map(m => m.name).join(', ')}]`)
 
   const encoder = new TextEncoder()
   const stream = new ReadableStream<Uint8Array>({
@@ -78,6 +87,7 @@ export default defineEventHandler(async (event) => {
             system: string
             prompt: string
           }) => {
+            log(`  streamAgentMessage: member=${params.member.name}`)
             writeEvent({
               type: 'speaker',
               member: {
@@ -88,19 +98,35 @@ export default defineEventHandler(async (event) => {
               }
             })
 
+            const model = await getModel()
+            log(`  streamText starting for ${params.member.name}`)
             const result = streamText({
-              model: await getModel(),
+              model,
               system: params.system,
               prompt: params.prompt
             })
 
             let content = ''
-            for await (const chunk of result.textStream) {
-              content += chunk
-              writeEvent({
-                type: 'message_content',
-                content: clipText(content)
-              })
+            let partCount = 0
+            for await (const part of result.fullStream) {
+              partCount++
+              if (part.type === 'text-delta') {
+                content += part.text
+                writeEvent({
+                  type: 'message_content',
+                  content: clipText(content)
+                })
+              } else if (part.type === 'error') {
+                err(`  fullStream error part:`, part.error)
+                throw part.error
+              } else if (part.type !== 'finish' && part.type !== 'start' && part.type !== 'finish-step' && part.type !== 'start-step' && part.type !== 'text-start' && part.type !== 'text-end') {
+                log(`  fullStream part type=${part.type}`)
+              }
+            }
+            log(`  fullStream done: partCount=${partCount} contentLength=${content.length}`)
+
+            if (!content) {
+              throw new Error('Model returned empty content. Check your model name and API key.')
             }
 
             const clippedContent = clipText(content)
@@ -117,6 +143,8 @@ export default defineEventHandler(async (event) => {
             if (!message) {
               throw new Error('Failed to persist council message.')
             }
+
+            log(`  persisted message id=${message.id} length=${clippedContent.length}`)
 
             const hydratedMessage = {
               id: message.id,
@@ -138,6 +166,7 @@ export default defineEventHandler(async (event) => {
           }
 
           if (userMessage?.trim()) {
+            log(`  inserting user message`)
             await db.insert(schema.councilMessages).values({
               meetingId: meeting.id,
               role: 'user',
@@ -167,16 +196,22 @@ export default defineEventHandler(async (event) => {
           )
           let rounds = currentState.rounds || 0
 
+          log(`  state resolved: phase=${currentState.phase} rounds=${rounds}/${maxRounds} queue=[${queue.join(', ')}] concluded=${currentState.concluded}`)
+
           if (queue.length === 0) {
+            log(`  queue empty → rounds=${rounds} maxRounds=${maxRounds} concluded=${currentState.concluded}`)
+
             if (rounds < maxRounds) {
               queue = shuffle(activeMembers.map(member => member.id))
               rounds += 1
+              log(`  → new discussion round ${rounds}, queue=[${queue.join(', ')}]`)
               writeEvent({
                 type: 'phase',
                 phase: 'discussion'
               })
             } else {
               if (!currentState.concluded) {
+                log(`  → entering final_verdicts phase`)
                 writeEvent({
                   type: 'phase',
                   phase: 'final_verdicts'
@@ -199,6 +234,7 @@ export default defineEventHandler(async (event) => {
                 const voteExplanations: CouncilVoteExplanation[] = []
 
                 for (const member of activeMembers) {
+                  log(`  collecting final statement from ${member.name}`)
                   const statement = await streamAgentMessage({
                     member,
                     system: `Du bist ${member.name}, ${member.title}, in einem KI-Rat.
@@ -229,6 +265,7 @@ Gib dein Abschlussurteil an den Rat ab.`
                   })
                 }
 
+                log(`  → entering voting phase, ${activeMembers.length} members voting`)
                 writeEvent({
                   type: 'phase',
                   phase: 'voting'
@@ -253,6 +290,7 @@ Gib dein Abschlussurteil an den Rat ab.`
                   )
                   const fallbackCandidate = candidates[0] || finalStatements[0]
                   if (!fallbackCandidate) {
+                    log(`  no candidates for ${member.name}, skipping`)
                     continue
                   }
 
@@ -260,6 +298,7 @@ Gib dein Abschlussurteil an den Rat ab.`
                     .map(statement => `${statement.memberId}: ${statement.memberName} -> ${statement.statement}`)
                     .join('\n')
 
+                  log(`  generateText vote selection for ${member.name}`)
                   const { text: voteSelection } = await generateText({
                     model: await getModel(),
                     system: `Du bist ${member.name}, ${member.title}.
@@ -285,6 +324,7 @@ ${candidateLines}`
                   const votedFor
                     = candidates.find(candidate => candidate.memberId === selectedId)
                       || fallbackCandidate
+                  log(`  ${member.name} votes for ${votedFor.memberName} (raw="${selectedId}")`)
 
                   const reasonText = await streamAgentMessage({
                     member,
@@ -322,6 +362,7 @@ ${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
                   })
                 }
 
+                log(`  generating verdict`)
                 const fullTranscript = transcriptMessages
                   .map((message) => {
                     const author
@@ -340,6 +381,8 @@ ${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
                   finalStatements,
                   voteExplanations
                 )
+                log(`  verdict generated: winningIdea="${verdict.winningIdea}"`)
+
                 const finalStatementText = verdict.finalStatements
                   .map(statement => `${statement.memberName}: ${statement.statement}`)
                   .join('\n')
@@ -370,19 +413,14 @@ ${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
                   })
                   .where(eq(schema.councilMeetings.id, meeting.id))
 
-                writeEvent({
-                  type: 'phase',
-                  phase: 'completed'
-                })
-                writeEvent({
-                  type: 'status',
-                  status: 'completed',
-                  verdict
-                })
+                log(`  ✓ meeting completed`)
+                writeEvent({ type: 'phase', phase: 'completed' })
+                writeEvent({ type: 'status', status: 'completed', verdict })
                 controller.close()
                 return
               }
 
+              log(`  → already concluded, returning completed status`)
               writeEvent({
                 type: 'status',
                 status: 'completed',
@@ -396,13 +434,13 @@ ${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
           const speakerId = queue.shift()
           const speaker = activeMembers.find(member => member.id === speakerId)
           if (!speaker) {
-            writeEvent({
-              type: 'status',
-              status: 'idle'
-            })
+            log(`  speaker id=${speakerId} not found in activeMembers, returning idle`)
+            writeEvent({ type: 'status', status: 'idle' })
             controller.close()
             return
           }
+
+          log(`  → discussion turn: speaker=${speaker.name} remaining queue=[${queue.join(', ')}]`)
 
           writeEvent({
             type: 'speaker',
@@ -427,8 +465,10 @@ ${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
             })
             .join('\n')
 
+          const model = await getModel()
+          log(`  streamText starting for ${speaker.name} (discussion)`)
           const result = streamText({
-            model: await getModel(),
+            model,
             system: `Du bist ${speaker.name}, ${speaker.title}, in einem KI-Rat.
 Persönlichkeit: ${speaker.personality}
 Ziel: ${speaker.objective}
@@ -443,12 +483,26 @@ Regeln:
           })
 
           let content = ''
-          for await (const chunk of result.textStream) {
-            content += chunk
-            writeEvent({
-              type: 'message_content',
-              content: clipText(content)
-            })
+          let partCount = 0
+          for await (const part of result.fullStream) {
+            partCount++
+            if (part.type === 'text-delta') {
+              content += part.text
+              writeEvent({
+                type: 'message_content',
+                content: clipText(content)
+              })
+            } else if (part.type === 'error') {
+              err(`  fullStream error part:`, part.error)
+              throw part.error
+            } else if (part.type !== 'finish' && part.type !== 'start' && part.type !== 'finish-step' && part.type !== 'start-step' && part.type !== 'text-start' && part.type !== 'text-end') {
+              log(`  fullStream part type=${part.type}`)
+            }
+          }
+          log(`  fullStream done: partCount=${partCount} contentLength=${content.length}`)
+
+          if (!content) {
+            throw new Error('Model returned empty content. Check your model name and API key.')
           }
 
           const clippedContent = clipText(content)
@@ -482,6 +536,8 @@ Regeln:
             })
             .where(eq(schema.councilMeetings.id, meeting.id))
 
+          log(`  persisted message id=${message.id} length=${clippedContent.length}, updated meeting state`)
+
           writeEvent({
             type: 'message',
             message: {
@@ -499,15 +555,17 @@ Regeln:
               }
             }
           })
+          log(`  ✓ tick complete for ${speaker.name}`)
           controller.close()
         } catch (error) {
+          err(`  ✗ caught error:`, error)
           const message
             = error instanceof Error ? error.message : 'Failed to progress meeting.'
-          writeEvent({
-            type: 'error',
-            message
-          })
-          controller.close()
+          try {
+            controller.error(new Error(message))
+          } catch {
+            try { controller.close() } catch { /* already closed */ }
+          }
         }
       })()
     }

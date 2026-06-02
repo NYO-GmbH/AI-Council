@@ -1,9 +1,9 @@
-# Tagalong
+# NYO AI Council
 
 > [!WARNING]
 > **Proof of Concept** – Dieses Projekt ist ein experimenteller Prototyp und nicht für den Produktionseinsatz geeignet. Es gibt keine Authentifizierung, kein Rate-Limiting und keine Härtung gegen Missbrauch. Nur in vertrauenswürdigen, privaten Umgebungen betreiben.
 
-Tagalong ist eine KI-Rats-Anwendung, entwickelt mit Nuxt 4. Statt eines einzelnen Chatbots führt Tagalong einen moderierten Rundtisch aus KI-Mitgliedern mit unterschiedlichen Rollen, Persönlichkeiten und Zielen durch.
+NYO AI Council ist eine KI-Rats-Anwendung, entwickelt mit Nuxt 4. Statt eines einzelnen Chatbots führt der Rat einen moderierten Rundtisch aus KI-Mitgliedern mit unterschiedlichen Rollen, Persönlichkeiten und Zielen durch.
 
 Jede Sitzung verläuft in Gesprächsrunden. Mitglieder liefern prägnante Beiträge, du kannst laufende Sitzungen mit neuen Impulsen unterbrechen, und das System erstellt ein Abschlussurteil mit:
 - einer Zusammenfassung
@@ -46,7 +46,7 @@ npm run db:push
 
 ### 3. Modell-Endpunkt starten
 
-Standardmäßig verbindet sich Tagalong mit LM Studio unter:
+Standardmäßig verbindet sich das Council mit LM Studio unter:
 
 ```
 http://127.0.0.1:1235/v1
@@ -116,14 +116,14 @@ Beim ersten Start werden Datenbankmigrationen automatisch ausgeführt.
 
 ```bash
 docker compose down
-docker volume rm tagalong_db_data
+docker volume rm ai_council_db_data
 docker compose up
 ```
 
 Beide Volumes löschen (inkl. gespeicherter Einstellungen):
 
 ```bash
-docker volume rm tagalong_db_data tagalong_kv_data
+docker volume rm ai_council_db_data ai_council_kv_data
 ```
 
 ---

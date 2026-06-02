@@ -17,9 +17,9 @@ useHead({
   },
 });
 
-const title = "Tagalong";
+const title = "NYO AI Council";
 const description =
-  "Tagalong is an AI Council app where multiple agents debate a topic and produce a final verdict.";
+  "NYO AI Council ist eine KI-Rats-Anwendung. Statt eines einzelnen Chatbots führt der Rat einen moderierten Rundtisch aus KI-Mitgliedern mit unterschiedlichen Rollen, Persönlichkeiten und Zielen durch.";
 
 useSeoMeta({
   title,

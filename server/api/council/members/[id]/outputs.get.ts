@@ -33,6 +33,6 @@ export default defineEventHandler(async (event) => {
     content: output.content,
     createdAt: output.createdAt,
     meetingId: output.meetingId,
-    meetingTopic: output.meeting?.topic || "Untitled meeting",
+    meetingTopic: output.meeting?.topic || "Unbenannte Sitzung",
   }));
 });

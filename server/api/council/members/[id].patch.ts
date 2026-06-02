@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   if (Object.keys(body).length === 0) {
     throw createError({
       statusCode: 400,
-      statusMessage: "No member updates provided.",
+      statusMessage: "Keine Änderungen angegeben.",
     });
   }
 
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   if (!member) {
     throw createError({
       statusCode: 404,
-      statusMessage: "Council member not found.",
+      statusMessage: "Ratsmitglied nicht gefunden.",
     });
   }
 

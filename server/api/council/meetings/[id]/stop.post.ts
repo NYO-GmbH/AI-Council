@@ -13,7 +13,7 @@ export default defineEventHandler(async (event) => {
   await db.insert(schema.councilMessages).values({
     meetingId: meeting.id,
     role: 'system',
-    content: 'Meeting was stopped manually by the user.'
+    content: 'Sitzung wurde manuell vom Nutzer beendet.'
   })
 
   const [updated] = await db

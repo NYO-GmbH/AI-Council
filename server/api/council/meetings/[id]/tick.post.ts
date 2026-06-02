@@ -54,7 +54,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const activeMembers = await getActiveCouncilMembersOrThrow(
-    'No active council members available.'
+    'Keine aktiven Ratsmitglieder verfügbar.'
   )
   log(`  activeMembers=[${activeMembers.map(m => m.name).join(', ')}]`)
 
@@ -127,7 +127,7 @@ export default defineEventHandler(async (event) => {
             log(`  fullStream done: partCount=${partCount} contentLength=${content.length}`)
 
             if (!content) {
-              throw new Error('Model returned empty content. Check your model name and API key.')
+              throw new Error('Modell hat keinen Inhalt zurückgegeben. Bitte Modellname und API-Schlüssel prüfen.')
             }
 
             const clippedContent = clipText(content)
@@ -142,7 +142,7 @@ export default defineEventHandler(async (event) => {
               })
               .returning()
             if (!message) {
-              throw new Error('Failed to persist council message.')
+              throw new Error('Ratsnachricht konnte nicht gespeichert werden.')
             }
 
             log(`  persisted message id=${message.id} length=${clippedContent.length}`)
@@ -370,7 +370,7 @@ ${transcriptText(transcriptMessages) || 'Noch keine Nachrichten.'}`
                       = message.role === 'agent'
                         ? message.member?.name || 'Agent'
                         : message.role === 'user'
-                          ? 'User'
+                          ? 'Nutzer'
                           : 'System'
                     return `${author}: ${message.content}`
                   })
@@ -504,7 +504,7 @@ Regeln:
           log(`  fullStream done: partCount=${partCount} contentLength=${content.length}`)
 
           if (!content) {
-            throw new Error('Model returned empty content. Check your model name and API key.')
+            throw new Error('Modell hat keinen Inhalt zurückgegeben. Bitte Modellname und API-Schlüssel prüfen.')
           }
 
           const clippedContent = clipText(content)
@@ -519,7 +519,7 @@ Regeln:
             })
             .returning()
           if (!message) {
-            throw new Error('Failed to persist council message.')
+            throw new Error('Ratsnachricht konnte nicht gespeichert werden.')
           }
 
           await db
@@ -562,7 +562,7 @@ Regeln:
         } catch (error) {
           err(`  ✗ caught error:`, error)
           const message
-            = error instanceof Error ? error.message : 'Failed to progress meeting.'
+            = error instanceof Error ? error.message : 'Sitzung konnte nicht fortgeführt werden.'
           try {
             controller.error(new Error(message))
           } catch {

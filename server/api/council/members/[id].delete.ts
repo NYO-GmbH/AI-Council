@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   if (!member) {
     throw createError({
       statusCode: 404,
-      statusMessage: "Council member not found.",
+      statusMessage: "Ratsmitglied nicht gefunden.",
     });
   }
 

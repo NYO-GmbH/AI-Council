@@ -70,18 +70,18 @@ export function useCouncilMeeting() {
   const hasActiveMeeting = computed(() => meeting.value?.status === "active");
   const roundLabel = computed(() => {
     if (!meeting.value?.state) {
-      return "Round 0/0";
+      return "Runde 0/0";
     }
     if (meeting.value.state.phase === "final_verdicts") {
-      return "Final Verdicts";
+      return "Abschlussurteile";
     }
     if (meeting.value.state.phase === "voting") {
-      return "Final Voting";
+      return "Abschlussvoting";
     }
     if (meeting.value.state.phase === "completed") {
-      return "Completed";
+      return "Abgeschlossen";
     }
-    return `Round ${meeting.value.state.rounds}/${meeting.value.state.maxRounds}`;
+    return `Runde ${meeting.value.state.rounds}/${meeting.value.state.maxRounds}`;
   });
   const verdict = computed(() => meeting.value?.state?.verdict);
 
@@ -176,7 +176,7 @@ export function useCouncilMeeting() {
       );
       if (!response.ok) {
         const failure = await response.text();
-        let message = "Failed to progress meeting.";
+        let message = "Sitzung konnte nicht fortgeführt werden.";
         if (failure) {
           try {
             const parsed = JSON.parse(failure) as { statusMessage?: string };
@@ -325,7 +325,7 @@ export function useCouncilMeeting() {
           description:
             err?.data?.statusMessage ||
             err?.message ||
-            "Failed to progress meeting.",
+            "Sitzung konnte nicht fortgeführt werden.",
         });
       }
     } finally {
@@ -422,7 +422,7 @@ export function useCouncilMeeting() {
       toast.add({
         color: "success",
         icon: "i-lucide-trash-2",
-        description: "Meeting deleted.",
+        description: "Sitzung gelöscht.",
       });
     } catch (error: unknown) {
       const err = error as {
@@ -435,7 +435,7 @@ export function useCouncilMeeting() {
         description:
           err?.data?.statusMessage ||
           err?.message ||
-          "Failed to delete meeting.",
+          "Sitzung konnte nicht gelöscht werden.",
       });
     } finally {
       deleting.value = false;

@@ -11,7 +11,7 @@ export default defineEventHandler(async (event) => {
   const { topic, rounds } = await readValidatedBody(event, bodySchema.parse)
 
   const activeMembers = await getActiveCouncilMembersOrThrow(
-    'You need at least one active council member to start a meeting.'
+    'Mindestens ein aktives Ratsmitglied ist erforderlich, um eine Sitzung zu starten.'
   )
 
   const queue = activeMembers.map(member => member.id)
@@ -33,7 +33,7 @@ export default defineEventHandler(async (event) => {
   if (!meeting) {
     throw createError({
       statusCode: 500,
-      statusMessage: 'Failed to create meeting.'
+      statusMessage: 'Sitzung konnte nicht erstellt werden.'
     })
   }
 

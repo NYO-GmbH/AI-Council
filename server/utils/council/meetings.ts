@@ -9,7 +9,7 @@ export async function getMeetingOrThrow(id: string) {
   if (!meeting) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Council meeting not found.'
+      statusMessage: 'Ratssitzung nicht gefunden.'
     })
   }
 
@@ -32,7 +32,7 @@ export async function getMeetingWithMessagesOrThrow(id: string) {
   if (!meeting) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Council meeting not found.'
+      statusMessage: 'Ratssitzung nicht gefunden.'
     })
   }
 

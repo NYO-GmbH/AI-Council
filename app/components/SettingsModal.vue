@@ -6,12 +6,12 @@ const saving = ref(false);
 const settingsSaved = useSettingsSaved();
 
 const providerOptions = [
-  { label: "LM Studio", value: "lmstudio" },
   { label: "OpenAI", value: "openai" },
+  { label: "LM Studio", value: "lmstudio" },
 ];
 
 const form = reactive({
-  provider: "lmstudio" as "lmstudio" | "openai",
+  provider: "openai" as "lmstudio" | "openai",
   baseUrl: "",
   modelName: "",
 });

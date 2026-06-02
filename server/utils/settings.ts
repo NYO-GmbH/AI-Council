@@ -5,9 +5,9 @@ const KEY_PROVIDER = 'lm:provider'
 export type Provider = 'lmstudio' | 'openai'
 
 export const SETTINGS_DEFAULTS = {
-  provider: (process.env.AI_PROVIDER ?? 'lmstudio') as Provider,
+  provider: (process.env.AI_PROVIDER ?? 'openai') as Provider,
   baseUrl: process.env.LM_STUDIO_BASE_URL ?? 'http://localhost:1235/v1',
-  modelName: process.env.LM_STUDIO_MODEL_NAME ?? 'qwen/qwen3-4b-2507',
+  modelName: process.env.LM_STUDIO_MODEL_NAME ?? 'gpt-4o-mini',
 }
 
 export async function getSettings() {

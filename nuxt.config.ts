@@ -2,6 +2,10 @@
 export default defineNuxtConfig({
   modules: ["@nuxt/ui", "@nuxtjs/mdc", "nuxt-charts"],
 
+  runtimeConfig: {
+    accessCode: '',
+  },
+
   devtools: {
     enabled: true,
   },

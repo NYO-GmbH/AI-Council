@@ -6,7 +6,7 @@ import {
   getActiveCouncilMembersOrThrow,
   getMeetingWithMessagesOrThrow
 } from '~~/server/utils/council/meetings'
-import { clipText, shuffle } from '~~/server/utils/council/text'
+import { shuffle } from '~~/server/utils/council/text'
 import {
   toSingleEventResponse,
   toStreamingResponse,
@@ -115,7 +115,7 @@ export default defineEventHandler(async (event) => {
                 content += part.text
                 writeEvent({
                   type: 'message_content',
-                  content: clipText(content)
+                  content
                 })
               } else if (part.type === 'error') {
                 err(`  fullStream error part:`, part.error)
@@ -130,7 +130,7 @@ export default defineEventHandler(async (event) => {
               throw new Error('Modell hat keinen Inhalt zurückgegeben. Bitte Modellname und API-Schlüssel prüfen.')
             }
 
-            const clippedContent = clipText(content)
+            const clippedContent = content.replace(/\s+/g, ' ').trim()
 
             const [message] = await db
               .insert(schema.councilMessages)
@@ -243,6 +243,7 @@ Persönlichkeit: ${member.personality}
 Ziel: ${member.objective}
 
 Regeln:
+- Halte dich kurz. Nicht mehr als 4 Sätze.
 - Dies ist dein persönliches ABSCHLUSSURTEIL nach Ende der Diskussion.
 - Beginne mit "Mein Abschlussurteil:"
 - Halte deine Antwort auf 2 prägnante Sätze.
@@ -334,6 +335,7 @@ Persönlichkeit: ${member.personality}
 Ziel: ${member.objective}
 
 Regeln:
+- Halte dich kurz. Nicht mehr als 4 Sätze.
 - Du stimmst für ${votedFor.memberName}.
 - Erkläre warum in 1-2 Sätzen.
 - Beginne mit "Ich stimme für ${votedFor.memberName}, weil"
@@ -476,6 +478,7 @@ Persönlichkeit: ${speaker.personality}
 Ziel: ${speaker.objective}
 
 Regeln:
+- Halte dich kurz. Nicht mehr als 4 Sätze.
 - Halte deine Antwort auf 1-2 Sätze.
 - Sei konkret und kooperativ.
 - Reagiere wenn möglich auf den letzten Sprecher.
@@ -492,7 +495,7 @@ Regeln:
               content += part.text
               writeEvent({
                 type: 'message_content',
-                content: clipText(content)
+                content
               })
             } else if (part.type === 'error') {
               err(`  fullStream error part:`, part.error)
@@ -507,7 +510,7 @@ Regeln:
             throw new Error('Modell hat keinen Inhalt zurückgegeben. Bitte Modellname und API-Schlüssel prüfen.')
           }
 
-          const clippedContent = clipText(content)
+          const clippedContent = content.replace(/\s+/g, ' ').trim()
 
           const [message] = await db
             .insert(schema.councilMessages)

@@ -1,6 +1,6 @@
 import { generateText } from 'ai'
 import { getModel } from '../model'
-import { clipText } from './text'
+
 
 export interface VerdictMemberInput {
   id: string
@@ -106,15 +106,12 @@ ${voteSummary || 'Keine.'}`
   const topVotedName = findTopVotedName(voteExplanations)
 
   return {
-    summary: clipText(summary, 420),
-    winningIdea: clipText(
-      winningIdea
+    summary,
+    winningIdea: winningIdea
       || (topVotedName
         ? `Der Vorschlag von ${topVotedName} erhielt die stärkste Unterstützung.`
         : 'Es wurde keine klare Gewinneridee identifiziert.'),
-      220
-    ),
-    voteResult: clipText(voteResult, 220),
+    voteResult,
     finalStatements,
     voteExplanations
   } satisfies CouncilVerdict
